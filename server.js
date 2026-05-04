@@ -108,8 +108,8 @@ app.post("/api/search", async (req, res) => {
     clearTimeout(timeout);
     console.log("==> Final flight count:", flightGroups.length);
 
-if (unique.length > 0) {
-  const sample = unique.slice(0,3).map(f => ({ dep: getDepTime(f), airline: f.airline }));
+if (flightGroups.length > 0) {
+  const sample = flightGroups.slice(0,3).map(f => ({ dep: getDepTime(f), airline: f.airline }));
   console.log("==> Sample flights:", JSON.stringify(sample));
 }
     
