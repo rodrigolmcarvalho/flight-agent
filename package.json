@@ -1,5 +1,11 @@
 {
-  "name": "flight-agent-proxy",
+  "name": "flight-agent-server",
   "version": "1.0.0",
-  "description": "Proxy para apidevoos.dev"
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
 }
