@@ -109,8 +109,7 @@ app.post("/api/search", async (req, res) => {
     console.log("==> Final flight count:", flightGroups.length);
 
 if (flightGroups.length > 0) {
-  const sample = flightGroups.slice(0,3).map(f => ({ dep: getDepTime(f), airline: f.airline }));
-  console.log("==> Sample flights:", JSON.stringify(sample));
+  console.log("==> First flight raw:", JSON.stringify(flightGroups[0]).slice(0, 500));
 }
     
     // Deduplicate
