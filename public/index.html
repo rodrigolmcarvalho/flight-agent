@@ -292,8 +292,8 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     for (const f of all) {
       const dep = getDepTime(f);
       const h = parseInt(dep.split(":")[0] || "0");
-      if (isMonday && h >= 9) continue;
-      if (!isMonday && h < 17) continue;
+      //if (isMonday && h >= 9) continue;
+      //if (!isMonday && h < 17) continue;
       const price = getPrice(f);
       if (!price) continue;
       const raw = f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
@@ -313,8 +313,8 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     if (!pts) continue;
     const depM = (m.departureDateTime||"").indexOf("T") >= 0 ? m.departureDateTime.split("T")[1].slice(0,5) : "";
     const hm = parseInt(depM.split(":")[0]||"0");
-    if (isMonday && hm >= 9) continue;
-    if (!isMonday && hm < 17) continue;
+    //if (isMonday && hm >= 9) continue;
+    //if (!isMonday && hm < 17) continue;
     const taxas = Math.round(m.taxAmount||0);
     const ptsBRL = Math.round(pts * POINTS_RATE);
     ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"Azul", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link:prog.indexOf("smiles")>=0?"https://www.smiles.com.br/passagens-aereas?originAirport="+origin+"&destinationAirport="+dest+"&departureDate="+date+"&adults=1":"https://www.tudoazul.com.br/voos?origem="+origin+"&destino="+dest+"&dataIda="+date, note:prog.indexOf("smiles")>=0?"Smiles":"TudoAzul" });
