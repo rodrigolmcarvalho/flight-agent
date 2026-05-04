@@ -1,12 +1,13 @@
 const express = require("express");
+const path = require("path");
 const app = express();
+
 app.use(express.json());
 
 const APIDEVOOS_KEY = process.env.APIDEVOOS_KEY;
 const BASE_URL = "https://app.apidevoos.dev/api/v1/flights";
 const PORT = process.env.PORT || 3000;
 
-// CORS
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -15,15 +16,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files
-const path = require("path");
-app.use(express.static(path.join(__dirname, "public")));
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", key: APIDEVOOS_KEY ? "set" : "missing", version: "4" });
+});
 
-// Health check
-app.get("/health", (req, res) => res.json({ status: "ok" }));
-
-// Flight search via SSE stream
 app.post("/api/search", async (req, res) => {
+  console.log("==> Search:", JSON.stringify(req.body).slice(0, 150));
   try {
     const upstream = await fetch(BASE_URL + "/stream", {
       method: "POST",
@@ -44,95 +42,98 @@ app.post("/api/search", async (req, res) => {
     const decoder = new TextDecoder();
     let buffer = "";
     let flightGroups = [];
-    let milesGroups = [];
     let tokens = {};
     let summary = {};
     let requestId = "";
     let currentEvent = "";
+    let done = false;
 
     const timeout = setTimeout(() => {
-      reader.cancel();
+      done = true;
+      reader.cancel().catch(() => {});
     }, 25000);
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    while (!done) {
+      let chunk;
+      try { chunk = await reader.read(); } catch(e) { break; }
+      if (chunk.done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop();
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) { currentEvent = ""; continue; }
-
-          if (trimmed.startsWith("event:")) {
-            currentEvent = trimmed.slice(6).trim();
-          } else if (trimmed.startsWith("data:")) {
-            const dataStr = trimmed.slice(5).trim();
-            if (!dataStr || dataStr === "[DONE]") continue;
-            try {
-              const data = JSON.parse(dataStr);
-              if (currentEvent === "search-initialized") {
-                requestId = data.requestId || "";
-                tokens = data.tokens || {};
-              } else if (currentEvent === "flight-update") {
-                const groups = data.newGroups || data.flightGroups || [];
-                flightGroups = flightGroups.concat(groups);
-              } else if (currentEvent === "search-complete") {
-                summary = data.summary || {};
-                clearTimeout(timeout);
-                break;
-              }
-            } catch (e) { /* skip */ }
-          }
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) { currentEvent = ""; continue; }
+        if (trimmed.startsWith("event:")) {
+          currentEvent = trimmed.slice(6).trim();
+        } else if (trimmed.startsWith("data:")) {
+          const dataStr = trimmed.slice(5).trim();
+          if (!dataStr || dataStr === "[DONE]") continue;
+          try {
+            const data = JSON.parse(dataStr);
+            if (currentEvent === "search-initialized") {
+              requestId = data.requestId || "";
+              tokens = data.tokens || {};
+            } else if (currentEvent === "flight-update") {
+              const groups = data.newGroups || data.flightGroups || [];
+              flightGroups = flightGroups.concat(groups);
+              console.log("==> Flight update, total:", flightGroups.length);
+            } else if (currentEvent === "search-complete") {
+              summary = data.summary || {};
+              clearTimeout(timeout);
+              done = true;
+              break;
+            }
+          } catch(e) {}
         }
-
-        if (currentEvent === "search-complete") break;
       }
-    } catch (e) { /* timeout or stream end */ }
+    }
 
     clearTimeout(timeout);
+    console.log("==> Final count:", flightGroups.length);
 
     // Deduplicate
     const seen = new Set();
     const unique = [];
     for (const f of flightGroups) {
-      const sig = f.flightSignature || f.humanSignature || (f.airline + getDepTime(f));
+      const sig = f.signature || f.humanSignature || f.flightSignature || JSON.stringify(f).slice(0, 80);
       if (!seen.has(sig)) { seen.add(sig); unique.push(f); }
     }
-
-    // Direct flights
-    const direct = unique.filter(f => {
-      const segs = f.slices && f.slices[0] && f.slices[0].segments;
-      return segs && segs.length === 1;
-    });
 
     // Sort by price
     unique.sort((a, b) => getPrice(a) - getPrice(b));
 
+    // Direct flights (1 segment)
+    const direct = unique.filter(f => getSegments(f).length === 1);
+
     // Extract miles
     const miles = [];
     for (const f of unique) {
-      if (!f.offers) continue;
-      for (const offer of f.offers) {
-        const info = offer.pointsInfo || offer.milesInfo;
-        if (!info) continue;
+      const pricing = f.pricingOptions || f.offers || [];
+      for (const p of pricing) {
+        const pts = p.miles || p.points || p.totalMiles || (p.pointsInfo && p.pointsInfo.totalPoints);
+        if (!pts) continue;
+        const prog = (p.program || p.milesProgram || p.pointsType || "").toLowerCase();
         miles.push({
-          airline: f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "",
-          departureDateTime: getDepTime(f),
-          arrivalDateTime: getArrTime(f),
-          pointsRequired: info.totalPoints || info.points || 0,
-          pointsType: (info.pointsType || info.program || "").toLowerCase(),
-          taxAmount: offer.taxes ? (offer.taxes.amount || 0) : 0,
-          totalCashEquivalent: ((info.totalPoints || 0) * 0.014) + (offer.taxes ? (offer.taxes.amount || 0) : 0),
-          providerId: offer.providerId || "",
-          flightSignature: f.flightSignature || "",
+          airline: getAirline(f),
+          departureDateTime: getDepDateTime(f),
+          arrivalDateTime: getArrDateTime(f),
+          pointsRequired: pts,
+          pointsType: prog,
+          taxAmount: p.taxes || p.taxAmount || 0,
+          totalCashEquivalent: (pts * 0.014) + (p.taxes || p.taxAmount || 0),
+          providerId: p.provider || p.providerId || "",
+          flightSignature: f.signature || "",
         });
       }
     }
     miles.sort((a, b) => a.totalCashEquivalent - b.totalCashEquivalent);
+
+    console.log("==> Direct:", direct.length, "Miles:", miles.length);
+    if (direct.length > 0) {
+      console.log("==> First direct dep:", getDepTime(direct[0]), "airline:", getAirline(direct[0]));
+    }
 
     return res.json({
       requestId, tokens,
@@ -140,45 +141,82 @@ app.post("/api/search", async (req, res) => {
         totalFlights: unique.length,
         totalDirectFlights: direct.length,
         totalMilesOffers: miles.length,
-        providers: summary.providers || [],
       },
       flightGroups: unique,
       directFlights: direct,
       milesGroups: miles,
     });
 
-  } catch (err) {
+  } catch(err) {
+    console.log("==> Error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 });
 
-// Fallback to index.html
+app.use(express.static(path.join(__dirname, "public")));
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.listen(PORT, () => console.log("Server running on port " + PORT));
 
-function getPrice(f) {
-  if (f.offers && f.offers[0]) return f.offers[0].total || f.offers[0].price || 0;
-  return f.price || f.total || f.totalPrice || 0;
+// ─── HELPERS com estrutura real da API ───────────────────────────────────────
+function getSegments(f) {
+  if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0]) {
+    return f.flightInfo.itineraries[0].segments || [];
+  }
+  if (f.slices && f.slices[0]) return f.slices[0].segments || [];
+  return [];
 }
 
 function getDepTime(f) {
-  if (f.slices && f.slices[0]) {
-    const sl = f.slices[0];
-    if (sl.segments && sl.segments[0]) return sl.segments[0].departureAt || "";
-    return sl.departureAt || "";
+  const segs = getSegments(f);
+  if (segs.length > 0 && segs[0].departure) {
+    return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11, 16) || "";
   }
-  return f.departureDateTime || f.departure || "";
+  return "";
+}
+
+function getDepDateTime(f) {
+  const segs = getSegments(f);
+  if (segs.length > 0 && segs[0].departure) {
+    return segs[0].departure.dateTime || "";
+  }
+  return "";
+}
+
+function getArrDateTime(f) {
+  const segs = getSegments(f);
+  if (segs.length > 0) {
+    const last = segs[segs.length - 1];
+    return (last.arrival && last.arrival.dateTime) ? last.arrival.dateTime : "";
+  }
+  return "";
 }
 
 function getArrTime(f) {
-  if (f.slices && f.slices[0]) {
-    const sl = f.slices[0];
-    const segs = sl.segments || [];
-    if (segs.length > 0) return segs[segs.length - 1].arrivalAt || "";
-    return sl.arrivalAt || "";
+  const segs = getSegments(f);
+  if (segs.length > 0) {
+    const last = segs[segs.length - 1];
+    if (last.arrival) {
+      return last.arrival.time || (last.arrival.dateTime || "").slice(11, 16) || "";
+    }
   }
-  return f.arrivalDateTime || f.arrival || "";
+  return "";
+}
+
+function getAirline(f) {
+  const segs = getSegments(f);
+  if (segs.length > 0 && segs[0].marketingCarrier) {
+    const code = segs[0].marketingCarrier.code || "";
+    const map = { "AD": "Azul", "G3": "Gol", "LA": "LATAM", "JJ": "LATAM" };
+    return map[code] || code;
+  }
+  return f.airline || "";
+}
+
+function getPrice(f) {
+  const p = f.pricingOptions || f.offers || [];
+  if (p.length > 0) return p[0].totalPrice || p[0].total || p[0].price || 0;
+  return f.price || f.total || 0;
 }
