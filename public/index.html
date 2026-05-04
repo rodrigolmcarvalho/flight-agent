@@ -279,8 +279,8 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   for (const f of directList) {
     const dep = getDepTime(f);
     const h = parseInt(dep.split(":")[0] || "0");
-    if (isMonday && h >= 9) continue;
-    if (!isMonday && h < 17) continue;
+    //if (isMonday && h >= 9) continue;
+    //if (!isMonday && h < 17) continue;
     const price = getPrice(f);
     if (!price) continue;
     const raw = f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
