@@ -239,43 +239,32 @@ function gLink(origin, dest, date) {
   return "https://www.google.com/travel/flights?q=Voos+" + origin + "+para+" + dest + "+" + date.replace(/-/g,"");
 }
 
-function getSegs(f) {
-  if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
-    return f.flightInfo.itineraries[0].segments || [];
-  if (f.slices && f.slices[0]) return f.slices[0].segments || [];
-  return [];
-}
 function getDepTime(f) {
-  const segs = getSegs(f);
-  if (segs.length > 0 && segs[0].departure) {
-    return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11,16) || "";
+  let dep = "";
+  if (f.slices && f.slices[0]) {
+    const sl = f.slices[0];
+    if (sl.segments && sl.segments[0]) dep = sl.segments[0].departureAt || "";
+    if (!dep) dep = sl.departureAt || "";
   }
-  let dep = f.departureDateTime || f.departure || "";
-  return dep.indexOf("T") >= 0 ? dep.slice(11,16) : dep.slice(0,5);
-}
-function getAirlineFromFlight(f) {
-  const segs = getSegs(f);
-  if (segs.length > 0 && segs[0].marketingCarrier) {
-    const code = segs[0].marketingCarrier.code || "";
-    return AIRLINE_MAP[code] || code;
-  }
-  return f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
+  if (!dep) dep = f.departureDateTime || f.departure || "";
+  return dep.indexOf("T") >= 0 ? dep.split("T")[1].slice(0,5) : dep.slice(0,5);
 }
 
 function getArrTime(f) {
-  const segs = getSegs(f);
-  if (segs.length > 0) {
-    const last = segs[segs.length - 1];
-    if (last.arrival) return last.arrival.time || (last.arrival.dateTime || "").slice(11,16) || "";
+  let arr = "";
+  if (f.slices && f.slices[0]) {
+    const sl = f.slices[0];
+    const segs = sl.segments || [];
+    if (segs.length > 0) arr = segs[segs.length-1].arrivalAt || "";
+    if (!arr) arr = sl.arrivalAt || "";
   }
-  let arr = f.arrivalDateTime || f.arrival || "";
-  return arr.indexOf("T") >= 0 ? arr.slice(11,16) : arr.slice(0,5);
+  if (!arr) arr = f.arrivalDateTime || f.arrival || "";
+  return arr.indexOf("T") >= 0 ? arr.split("T")[1].slice(0,5) : arr.slice(0,5);
 }
 
 function getPrice(f) {
   let p = 0;
-  const pricing = f.pricingOptions || f.offers || [];
-  if (pricing.length > 0) p = pricing[0].totalPrice || pricing[0].total || pricing[0].price || 0;
+  if (f.offers && f.offers[0]) p = f.offers[0].total || f.offers[0].price || 0;
   if (!p) p = f.price || f.total || f.totalPrice || 0;
   if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(".","").replace(",",".")) || 0;
   return Math.round(p);
@@ -294,7 +283,8 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     if (!isMonday && h < 17) continue;
     const price = getPrice(f);
     if (!price) continue;
-    cashOpts.push({ airline:getAirlineFromFlight(f), payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:"direto" });
+    const raw = f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
+    cashOpts.push({ airline:AIRLINE_MAP[raw]||raw, payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:"direto" });
   }
 
   if (cashOpts.length === 0) {
@@ -306,8 +296,9 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
       if (!isMonday && h < 17) continue;
       const price = getPrice(f);
       if (!price) continue;
-      const nsegs = getSegs(f).length;
-      cashOpts.push({ airline:getAirlineFromFlight(f), payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:nsegs>1?"com escala":"direto" });
+      const raw = f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
+      const segs = f.slices && f.slices[0] && f.slices[0].segments ? f.slices[0].segments.length : 1;
+      cashOpts.push({ airline:AIRLINE_MAP[raw]||raw, payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:segs>1?"com escala":"direto" });
       if (cashOpts.length >= 5) break;
     }
   }
