@@ -6,29 +6,29 @@
 <title>Agente de Voos BH ↔ Rio</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: Georgia, serif; background: #0f1117; color: #e8e0d0; min-height: 100vh; }
+body { font-family: Georgia, serif; background: #1A2E1A; color: #D4E8C2; min-height: 100vh; }
 button { cursor: pointer; font-family: inherit; }
 select, input { font-family: inherit; }
 a { color: #6b9ef4; }
 
-.header { background: #16181f; border-bottom: 1px solid #2a2d3a; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.header { background: #1e3a1e; border-bottom: 1px solid #2d502d; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .header-title { font-size: 20px; font-weight: bold; }
-.header-sub { font-size: 11px; color: #6b7280; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 4px; }
+.header-sub { font-size: 11px; color: #7a9a7a; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 4px; }
 .pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .pill { font-size: 11px; border-radius: 20px; padding: 4px 12px; border: 1px solid; }
 
-.tabs { background: #16181f; border-bottom: 1px solid #2a2d3a; display: flex; overflow-x: auto; padding: 0 20px; }
-.tab { background: none; border: none; border-bottom: 2px solid transparent; color: #6b7280; padding: 12px 16px; font-size: 13px; white-space: nowrap; transition: all 0.2s; }
-.tab.active { color: #e8c96a; border-bottom-color: #e8c96a; }
+.tabs { background: #1e3a1e; border-bottom: 1px solid #2d502d; display: flex; overflow-x: auto; padding: 0 20px; }
+.tab { background: none; border: none; border-bottom: 2px solid transparent; color: #7a9a7a; padding: 12px 16px; font-size: 13px; white-space: nowrap; transition: all 0.2s; }
+.tab.active { color: #C8B450; border-bottom-color: #C8B450; }
 
 .content { padding: 20px; max-width: 860px; margin: 0 auto; }
 
-.month-label { font-size: 11px; color: #6b7280; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
+.month-label { font-size: 11px; color: #7a9a7a; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
 .month-block { margin-bottom: 24px; }
 
 .week-card { border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; border: 1px solid; }
 .week-dates { min-width: 68px; text-align: center; }
-.week-dates .label { font-size: 11px; color: #6b7280; }
+.week-dates .label { font-size: 11px; color: #7a9a7a; }
 .week-dates .date { font-size: 13px; }
 .week-flights { flex: 1; }
 .flight-line { font-size: 12px; margin-bottom: 2px; }
@@ -36,52 +36,52 @@ a { color: #6b9ef4; }
 .badge { font-size: 11px; border-radius: 20px; padding: 3px 10px; border: 1px solid; white-space: nowrap; }
 
 .btn { border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: bold; }
-.btn-gold { background: #e8c96a; color: #0f1117; }
+.btn-gold { background: #C8B450; color: #0f1117; }
 .btn-blue { background: #1e3a8a; color: #93c5fd; border: 1px solid #1e40af !important; }
 .btn-green { background: #14532d; color: #86efac; border: 1px solid #166534 !important; }
-.btn-ghost { background: transparent; color: #6b7280; border: 1px solid #374151 !important; }
+.btn-ghost { background: transparent; color: #7a9a7a; border: 1px solid #374151 !important; }
 
 .search-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
-.search-select { background: #16181f; color: #e8e0d0; border: 1px solid #2a2d3a; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+.search-select { background: #1e3a1e; color: #D4E8C2; border: 1px solid #2d502d; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
 
-.result-card { background: #16181f; border: 1px solid #2a2d3a; border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+.result-card { background: #1e3a1e; border: 1px solid #2d502d; border-radius: 10px; padding: 18px; margin-bottom: 12px; }
 .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
-.result-label { font-size: 11px; color: #6b7280; letter-spacing: 2px; text-transform: uppercase; }
+.result-label { font-size: 11px; color: #7a9a7a; letter-spacing: 2px; text-transform: uppercase; }
 .reason-box { font-size: 12px; color: #f59e0b; background: #1c1500; border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
-.section-label { font-size: 10px; color: #6b7280; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.section-label { font-size: 10px; color: #7a9a7a; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 
 .option-card { border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; border: 1px solid; }
 .option-info { flex: 1; }
 .option-rec { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
 .option-name { font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .option-badge { font-size: 11px; border-radius: 4px; padding: 2px 7px; }
-.option-route { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.option-route { font-size: 12px; color: #7a9a7a; margin-top: 2px; }
 .option-note { font-size: 11px; color: #f59e0b; margin-top: 3px; }
 .option-price { text-align: right; }
 .price-main { font-size: 16px; font-weight: bold; }
-.price-sub { font-size: 11px; color: #6b7280; }
+.price-sub { font-size: 11px; color: #7a9a7a; }
 
-.flight-card { background: #16181f; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; border: 1px solid; }
+.flight-card { background: #1e3a1e; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; border: 1px solid; }
 .flight-card-info { flex: 1; }
 .flight-card-badge { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
 .flight-card-name { font-size: 15px; font-weight: bold; }
-.flight-card-date { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.flight-card-date { font-size: 12px; color: #7a9a7a; margin-top: 2px; }
 .flight-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .flight-card-price { text-align: right; }
 
-.manual-form { background: #16181f; border: 1px solid #1e3a8a; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+.manual-form { background: #1e3a1e; border: 1px solid #2d502d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 4px; }
-.form-field input, .form-field select { width: 100%; background: #0f1117; color: #e8e0d0; border: 1px solid #2a2d3a; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.form-field label { font-size: 11px; color: #7a9a7a; display: block; margin-bottom: 4px; }
+.form-field input, .form-field select { width: 100%; background: #1A2E1A; color: #D4E8C2; border: 1px solid #2d502d; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
 .form-actions { display: flex; gap: 10px; margin-top: 16px; }
 
-.summary-bar { padding: 12px 16px; background: #1a1f2e; border-radius: 8px; font-size: 13px; color: #6b7280; display: flex; gap: 20px; flex-wrap: wrap; margin-top: 4px; }
+.summary-bar { padding: 12px 16px; background: #0f2a0f; border-radius: 8px; font-size: 13px; color: #7a9a7a; display: flex; gap: 20px; flex-wrap: wrap; margin-top: 4px; }
 
 .notif-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
 .notif { padding: 10px 16px; border-radius: 8px; font-size: 13px; max-width: 300px; color: #fff; }
 
-.empty { text-align: center; color: #6b7280; margin-top: 60px; font-size: 14px; }
-.loading { text-align: center; margin-top: 40px; color: #6b7280; }
+.empty { text-align: center; color: #7a9a7a; margin-top: 60px; font-size: 14px; }
+.loading { text-align: center; margin-top: 40px; color: #7a9a7a; }
 .loading-icon { font-size: 28px; display: block; margin-bottom: 8px; }
 </style>
 </head>
@@ -157,11 +157,14 @@ const VACATION_PERIODS = [
 ];
 
 const HOLIDAY_BLOCKED = {
+  "2026-06-01":"Corpus Christi (04/06)",
   "2026-09-07":"Independencia do Brasil",
   "2026-10-12":"N.Sra. Aparecida",
   "2026-11-02":"Finados",
   "2026-11-16":"Proclamacao da Republica",
   "2026-11-23":"Consciencia Negra",
+  "2026-12-21":"Natal (25/12)",
+  "2026-12-28":"Reveillon 2027 (01/01)",
 };
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
@@ -239,32 +242,43 @@ function gLink(origin, dest, date) {
   return "https://www.google.com/travel/flights?q=Voos+" + origin + "+para+" + dest + "+" + date.replace(/-/g,"");
 }
 
+function getSegs(f) {
+  if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
+    return f.flightInfo.itineraries[0].segments || [];
+  if (f.slices && f.slices[0]) return f.slices[0].segments || [];
+  return [];
+}
 function getDepTime(f) {
-  let dep = "";
-  if (f.slices && f.slices[0]) {
-    const sl = f.slices[0];
-    if (sl.segments && sl.segments[0]) dep = sl.segments[0].departureAt || "";
-    if (!dep) dep = sl.departureAt || "";
+  const segs = getSegs(f);
+  if (segs.length > 0 && segs[0].departure) {
+    return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11,16) || "";
   }
-  if (!dep) dep = f.departureDateTime || f.departure || "";
-  return dep.indexOf("T") >= 0 ? dep.split("T")[1].slice(0,5) : dep.slice(0,5);
+  let dep = f.departureDateTime || f.departure || "";
+  return dep.indexOf("T") >= 0 ? dep.slice(11,16) : dep.slice(0,5);
+}
+function getAirlineFromFlight(f) {
+  const segs = getSegs(f);
+  if (segs.length > 0 && segs[0].marketingCarrier) {
+    const code = segs[0].marketingCarrier.code || "";
+    return AIRLINE_MAP[code] || code;
+  }
+  return f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
 }
 
 function getArrTime(f) {
-  let arr = "";
-  if (f.slices && f.slices[0]) {
-    const sl = f.slices[0];
-    const segs = sl.segments || [];
-    if (segs.length > 0) arr = segs[segs.length-1].arrivalAt || "";
-    if (!arr) arr = sl.arrivalAt || "";
+  const segs = getSegs(f);
+  if (segs.length > 0) {
+    const last = segs[segs.length - 1];
+    if (last.arrival) return last.arrival.time || (last.arrival.dateTime || "").slice(11,16) || "";
   }
-  if (!arr) arr = f.arrivalDateTime || f.arrival || "";
-  return arr.indexOf("T") >= 0 ? arr.split("T")[1].slice(0,5) : arr.slice(0,5);
+  let arr = f.arrivalDateTime || f.arrival || "";
+  return arr.indexOf("T") >= 0 ? arr.slice(11,16) : arr.slice(0,5);
 }
 
 function getPrice(f) {
   let p = 0;
-  if (f.offers && f.offers[0]) p = f.offers[0].total || f.offers[0].price || 0;
+  const pricing = f.pricingOptions || f.offers || [];
+  if (pricing.length > 0) p = pricing[0].totalPrice || pricing[0].total || pricing[0].price || 0;
   if (!p) p = f.price || f.total || f.totalPrice || 0;
   if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(".","").replace(",",".")) || 0;
   return Math.round(p);
@@ -275,16 +289,21 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   const cashOpts = [];
   const ptsOpts = [];
 
+  // Debug log
+  console.log("[DEBUG] leg:", leg, "directFlights:", (data.directFlights||[]).length, "flightGroups:", (data.flightGroups||[]).length);
+  if ((data.directFlights||[]).length > 0) {
+    const f0 = data.directFlights[0];
+    console.log("[DEBUG] first direct keys:", Object.keys(f0));
+    console.log("[DEBUG] first direct dep:", getDepTime(f0), "price:", getPrice(f0));
+    console.log("[DEBUG] first direct raw:", JSON.stringify(f0).slice(0,300));
+  }
+
   const directList = data.directFlights || [];
   for (const f of directList) {
     const dep = getDepTime(f);
     const h = parseInt(dep.split(":")[0] || "0");
-    if (isMonday && h >= 9) continue;
-    if (!isMonday && h < 17) continue;
     const price = getPrice(f);
-    if (!price) continue;
-    const raw = f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
-    cashOpts.push({ airline:AIRLINE_MAP[raw]||raw, payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:"direto" });
+    cashOpts.push({ airline:getAirlineFromFlight(f), payment_type:"cash", departure:dep, arrival:getArrTime(f), price:price||0, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:"direto" });
   }
 
   if (cashOpts.length === 0) {
@@ -292,13 +311,9 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     for (const f of all) {
       const dep = getDepTime(f);
       const h = parseInt(dep.split(":")[0] || "0");
-      if (isMonday && h >= 9) continue;
-      if (!isMonday && h < 17) continue;
       const price = getPrice(f);
-      if (!price) continue;
-      const raw = f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
-      const segs = f.slices && f.slices[0] && f.slices[0].segments ? f.slices[0].segments.length : 1;
-      cashOpts.push({ airline:AIRLINE_MAP[raw]||raw, payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:segs>1?"com escala":"direto" });
+      const nsegs = getSegs(f).length;
+      cashOpts.push({ airline:getAirlineFromFlight(f), payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:nsegs>1?"com escala":"direto" });
       if (cashOpts.length >= 5) break;
     }
   }
@@ -313,8 +328,6 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     if (!pts) continue;
     const depM = (m.departureDateTime||"").indexOf("T") >= 0 ? m.departureDateTime.split("T")[1].slice(0,5) : "";
     const hm = parseInt(depM.split(":")[0]||"0");
-    if (isMonday && hm >= 9) continue;
-    if (!isMonday && hm < 17) continue;
     const taxas = Math.round(m.taxAmount||0);
     const ptsBRL = Math.round(pts * POINTS_RATE);
     ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"Azul", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link:prog.indexOf("smiles")>=0?"https://www.smiles.com.br/passagens-aereas?originAirport="+origin+"&destinationAirport="+dest+"&departureDate="+date+"&adults=1":"https://www.tudoazul.com.br/voos?origem="+origin+"&destino="+dest+"&dataIda="+date, note:prog.indexOf("smiles")>=0?"Smiles":"TudoAzul" });
@@ -338,12 +351,20 @@ async function searchFlights(monStr, missingLegs) {
   const legResults = await Promise.all(searches.map(async s => {
     const body = { type:"one_way", slices:[{origin:s.origin,destination:s.dest,departureDate:s.date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"] };
     const res = await fetch(PROXY_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+    console.log("[DEBUG] fetch status:", res.status);
     if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
     const data = await res.json();
+    console.log("[DEBUG] server response keys:", Object.keys(data));
+    console.log("[DEBUG] flightGroups:", (data.flightGroups||[]).length, "directFlights:", (data.directFlights||[]).length);
+    console.log("[DEBUG] raw sample:", JSON.stringify(data).slice(0,500));
     return normaliseSyncResponse(data, s.leg, s.origin, s.dest, s.date);
   }));
-  const total = legResults.reduce((s,r) => s+(r&&r.options?r.options.length:0), 0);
-  return { results:legResults.filter(Boolean), summary:total+" voos encontrados · "+new Date().toLocaleTimeString("pt-BR") };
+  // Filter out empty results and retry if needed
+  const validResults = legResults.filter(r => r && r.options && r.options.length > 0);
+  const total = validResults.reduce((s,r) => s+r.options.length, 0);
+  // If some legs have no results, still show what we have
+  const allResults = legResults.filter(Boolean);
+  return { results:allResults, summary:total+" voos encontrados · "+new Date().toLocaleTimeString("pt-BR") };
 }
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
@@ -351,7 +372,7 @@ function addNotif(msg, type) {
   const c = document.getElementById("notifContainer");
   const d = document.createElement("div");
   d.className = "notif";
-  d.style.background = type==="success"?"#14532d":type==="error"?"#7f1d1d":"#1e293b";
+  d.style.background = type==="success"?"#1e4a2e":type==="error"?"#5a1a1a":"#1e293b";
   d.textContent = msg;
   c.appendChild(d);
   setTimeout(() => d.remove(), 4000);
@@ -384,7 +405,7 @@ function renderPills() {
   const confCount = Object.keys(state.confirmed).length;
   document.getElementById("headerPills").innerHTML = `
     <div class="pill" style="background:#f9731622;color:#f97316;border-color:#f9731644">${missing} sem voo</div>
-    <div class="pill" style="background:#e8c96a22;color:#e8c96a;border-color:#e8c96a44">${apprCount} a comprar</div>
+    <div class="pill" style="background:#C8B45022;color:#C8B450;border-color:#C8B45044">${apprCount} a comprar</div>
     <div class="pill" style="background:#22c55e22;color:#22c55e;border-color:#22c55e44">${confCount} confirmados</div>
   `;
 }
@@ -399,12 +420,12 @@ function renderDashboard() {
   });
 
   const STATUS = {
-    complete: { bg:"#0d1f0d", border:"#166534", badge:"#22c55e", icon:"✅", label:"Voos OK" },
-    partial:  { bg:"#1a150a", border:"#92400e", badge:"#f97316", icon:"⚠️", label:"Parcial" },
-    missing:  { bg:"#1f0d0d", border:"#7f1d1d", badge:"#ef4444", icon:"🚨", label:"Sem voo" },
-    vacation: { bg:"#0d0f1a", border:"#1e3a8a", badge:"#93c5fd", icon:"🏖", label:"" },
+    complete: { bg:"#0f2a0f", border:"#2d502d", badge:"#4CAF50", icon:"✅", label:"Voos OK" },
+    partial:  { bg:"#2a1f0a", border:"#92400e", badge:"#f97316", icon:"⚠️", label:"Parcial" },
+    missing:  { bg:"#2a0f0f", border:"#5a1a1a", badge:"#ef4444", icon:"🚨", label:"Sem voo" },
+    vacation: { bg:"#0d0f1a", border:"#1e3a5a", badge:"#90CAF9", icon:"🏖", label:"" },
     holiday:  { bg:"#0f0d1a", border:"#4c1d95", badge:"#a78bfa", icon:"🎉", label:"" },
-    unknown:  { bg:"#16181f", border:"#2a2d3a", badge:"#6b7280", icon:"?", label:"—" },
+    unknown:  { bg:"#1e3a1e", border:"#2d502d", badge:"#7a9a7a", icon:"?", label:"—" },
   };
 
   let html = "";
@@ -454,10 +475,10 @@ function renderDashboard() {
 
 function flightLineHTML(label, flight, extra, isConf, isAppr) {
   const f = flight || extra;
-  if (!f) return `<div class="flight-line"><span style="color:#6b7280">${label}:</span> <span style="color:#ef4444">sem voo</span></div>`;
+  if (!f) return `<div class="flight-line"><span style="color:#7a9a7a">${label}:</span> <span style="color:#ef4444">sem voo</span></div>`;
   const icon = isConf?"✅ ":isAppr?"🛒 ":"";
-  const color = isConf?"#86efac":isAppr?"#e8c96a":"#e8e0d0";
-  return `<div class="flight-line" style="color:${color}"><span style="color:#6b7280">${label}:</span> ${icon}${f.airline} ${f.route||""} ${f.time||f.departure||""}${f.code?" ["+f.code+"]":""}</div>`;
+  const color = isConf?"#A5D6A7":isAppr?"#C8B450":"#D4E8C2";
+  return `<div class="flight-line" style="color:${color}"><span style="color:#7a9a7a">${label}:</span> ${icon}${f.airline} ${f.route||""} ${f.time||f.departure||""}${f.code?" ["+f.code+"]":""}</div>`;
 }
 
 function renderSearch() {
@@ -492,7 +513,7 @@ function renderResultPanel(monStr, result) {
     return `<div class="result-card"><div style="color:#93c5fd">${result&&result.summary?result.summary:"Sem resultados. Tente novamente."}</div></div>`;
   }
 
-  let html = result.summary ? `<div style="background:#1a1f2e;border:1px solid #1e3a8a;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd">🤖 ${result.summary}</div>` : "";
+  let html = result.summary ? `<div style="background:#0f2a0f;border:1px solid #1e3a8a;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd">🤖 ${result.summary}</div>` : "";
 
   for (const leg of result.results) {
     const dateStr = leg.leg==="mon" ? monStr : addDays(monStr,1);
@@ -503,7 +524,7 @@ function renderResultPanel(monStr, result) {
     const ptsOpts = (leg.options||[]).filter(o => o.payment_type==="points");
     const recIdx = leg.recommended||0;
 
-    const dealBadge = leg.best_deal ? `<div class="badge" style="background:${leg.best_deal==="points"?"#1e3a8a33":"#14532d33"};color:${leg.best_deal==="points"?"#93c5fd":"#86efac"};border-color:${leg.best_deal==="points"?"#1e40af44":"#16653444"}">${leg.best_deal==="points"?"🔵 Pontos valem mais":"💰 Dinheiro melhor"}</div>` : "";
+    const dealBadge = leg.best_deal ? `<div class="badge" style="background:${leg.best_deal==="points"?"#1e3a8a33":"#14532d33"};color:${leg.best_deal==="points"?"#90CAF9":"#A5D6A7"};border-color:${leg.best_deal==="points"?"#1e40af44":"#16653444"}">${leg.best_deal==="points"?"🔵 Pontos valem mais":"💰 Dinheiro melhor"}</div>` : "";
 
     const approvedBanner = isApproved && apprOpt ? `<div style="background:#14532d;border-radius:6px;padding:8px 12px;font-size:12px;color:#86efac;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
       <span>✅ ${apprOpt.airline} ${apprOpt.departure} — ${apprOpt.payment_type==="points"?(apprOpt.points||0).toLocaleString("pt-BR")+" pts":"R$"+(apprOpt.price||0)}</span>
@@ -536,14 +557,14 @@ function renderResultPanel(monStr, result) {
 
 function optionCardHTML(opt, isRec, isApproved, route, monStr, leg) {
   const isPoints = opt.payment_type==="points";
-  const bg = isRec?(isPoints?"#0d1a2e":"#0d2213"):"#0f1117";
-  const border = isRec?(isPoints?"#1e3a8a":"#166534"):"#2a2d3a";
-  const recLabel = isRec?`<div class="option-rec" style="color:${isPoints?"#93c5fd":"#22c55e"}">${isPoints?"🔵 MELHOR EM PONTOS":"⭐ RECOMENDADO"}</div>`:"";
+  const bg = isRec?(isPoints?"#0f1a2a":"#0f2a0f"):"#1A2E1A";
+  const border = isRec?(isPoints?"#1e3a5a":"#2d502d"):"#2d502d";
+  const recLabel = isRec?`<div class="option-rec" style="color:${isPoints?"#90CAF9":"#4CAF50"}">${isPoints?"🔵 MELHOR EM PONTOS":"⭐ RECOMENDADO"}</div>`:"";
   const badgeBg = isPoints?"#1e3a8a33":"#37415133";
-  const badgeColor = isPoints?"#93c5fd":"#9ca3af";
+  const badgeColor = isPoints?"#90CAF9":"#9ca3af";
   const priceHTML = isPoints
     ? `<div class="price-main" style="color:#93c5fd">${(opt.points||0).toLocaleString("pt-BR")} pts</div><div class="price-sub">≈ R$${opt.points_value_brl}${opt.taxas?" + R$"+opt.taxas+" taxas":""}</div>`
-    : `<div class="price-main" style="color:#e8c96a">R$ ${(opt.price||0).toLocaleString("pt-BR")}</div>`;
+    : `<div class="price-main" style="color:#C8B450">R$ ${(opt.price||0).toLocaleString("pt-BR")}</div>`;
   const linkHTML = opt.link ? `<a href="${opt.link}" target="_blank" style="font-size:11px">→ ${isPoints?"Resgatar":"Comprar"}</a>` : "";
   const approveBtn = !isApproved ? `<button class="btn ${isPoints?"btn-blue":"btn-green"}" onclick='approveOpt(${JSON.stringify(JSON.stringify(Object.assign({},opt,{route:route})))}, "${monStr}", "${leg}")'>✅ Aprovar</button>` : "";
 
@@ -575,7 +596,7 @@ function renderApproved() {
   const totalCash = Object.values(state.approved).filter(f=>f.payment_type!=="points").reduce((s,f)=>s+(f.price||0),0);
   const totalPts = Object.values(state.approved).filter(f=>f.payment_type==="points").reduce((s,f)=>s+(f.points||0),0);
   html += `<div class="summary-bar">
-    <span>Dinheiro: <strong style="color:#e8c96a">R$ ${totalCash.toLocaleString("pt-BR")}</strong></span>
+    <span>Dinheiro: <strong style="color:#C8B450">R$ ${totalCash.toLocaleString("pt-BR")}</strong></span>
     ${totalPts>0?`<span>Pontos: <strong style="color:#93c5fd">${totalPts.toLocaleString("pt-BR")} pts</strong></span>`:""}
   </div>`;
   document.getElementById("tab-approved").innerHTML = html;
@@ -620,13 +641,13 @@ function renderConfirmed() {
 function flightCardHTML(key, flight, mode) {
   const isPoints = flight.payment_type==="points";
   const isConf = mode==="confirmed";
-  const borderColor = isConf?"#166534":isPoints?"#1e3a8a":"#92400e";
-  const badgeColor = isConf?"#22c55e":isPoints?"#93c5fd":"#e8c96a";
+  const borderColor = isConf?"#2d502d":isPoints?"#1e3a5a":"#92400e";
+  const badgeColor = isConf?"#4CAF50":isPoints?"#90CAF9":"#C8B450";
   const badgeText = isConf?("✅ CONFIRMADO"+(flight.code?" · "+flight.code:"")):(isPoints?"🔵 RESGATAR PONTOS":"🛒 COMPRAR");
   const dateLbl = flight.leg==="mon"?"Segunda "+fmtDate(flight.week):"Terca "+fmtDate(addDays(flight.week,1));
   const priceHTML = isPoints
     ? `<div style="font-size:16px;font-weight:bold;color:#93c5fd">${(flight.points||0).toLocaleString("pt-BR")} pts</div><div style="font-size:11px;color:#6b7280">≈ R$${flight.points_value_brl||0}${flight.taxas?" + R$"+flight.taxas+" taxas":""}</div>`
-    : `<div style="font-size:16px;font-weight:bold;color:#e8c96a">R$ ${(flight.price||0).toLocaleString("pt-BR")}</div>`;
+    : `<div style="font-size:16px;font-weight:bold;color:#C8B450">R$ ${(flight.price||0).toLocaleString("pt-BR")}</div>`;
   const linkHTML = flight.link&&!isConf ? `<a href="${flight.link}" target="_blank" style="font-size:11px">→ ${isPoints?"Resgatar":"Comprar"}</a>` : "";
   const confirmBtn = mode==="approved" ? `<button class="btn btn-green" onclick="confirmFlight('${key}')">✅ Confirmar</button>` : "";
   const removeBtn = `<button class="btn btn-ghost" onclick="removeFlight('${key}','${mode}')">✕</button>`;
