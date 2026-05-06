@@ -307,9 +307,21 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   }
 
   const buildOpt = (f, note) => {
-    const rioPort = isMonday ? (f._dest || dest) : (f._orig || origin);
-    const fOrig   = isMonday ? "CNF" : rioPort;
-    const fDest   = isMonday ? rioPort : "CNF";
+    // Detect the actual Rio airport (GIG or SDU) from segment arrival/departure
+    const segs = getSegs(f);
+    let rioPort = "";
+    if (segs.length > 0) {
+      if (isMonday) {
+        // outbound: Rio airport is the last segment's arrival
+        const last = segs[segs.length - 1];
+        rioPort = (last.arrival && last.arrival.airport) || "";
+      } else {
+        // return: Rio airport is the first segment's departure
+        rioPort = (segs[0].departure && segs[0].departure.airport) || "";
+      }
+    }
+    const fOrig = isMonday ? "CNF" : (rioPort || origin);
+    const fDest = isMonday ? (rioPort || dest) : "CNF";
     return {
       airline: getAirlineFromFlight(f),
       payment_type: "cash",
@@ -320,7 +332,7 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
       link: f.deepLink || gLink(fOrig, fDest, date),
       note,
       airport: rioPort,
-      sduPreferred: f._pref !== false,
+      sduPreferred: rioPort === "SDU",
     };
   };
 
@@ -373,9 +385,9 @@ async function searchFlights(monStr, missingLegs) {
   const legResults = await Promise.all(missingLegs.map(async leg => {
     const isMonday = leg === "mon";
     const date = isMonday ? monStr : tue;
-    // SDU is preferred; if the API returns GIG results naturally they'll still appear
-    const orig = isMonday ? "CNF" : "SDU";
-    const dest = isMonday ? "SDU" : "CNF";
+    // Use "RIO" city code — API returns both SDU and GIG results in one call
+    const orig = isMonday ? "CNF" : "RIO";
+    const dest = isMonday ? "RIO" : "CNF";
 
     try {
       const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
