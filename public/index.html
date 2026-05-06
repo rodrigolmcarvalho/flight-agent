@@ -280,9 +280,12 @@ function getArrTime(f) {
 function getPrice(f) {
   let p = 0;
   const pricing = f.pricingOptions || f.offers || [];
-  if (pricing.length > 0) p = pricing[0].totalPrice || pricing[0].total || pricing[0].price || 0;
-  if (!p) p = f.price || f.total || f.totalPrice || 0;
-  if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(".","").replace(",",".")) || 0;
+  if (pricing.length > 0) {
+    const p0 = pricing[0];
+    p = p0.totalPrice || p0.total || p0.price || p0.amount || p0.grandTotal || p0.totalAmount || p0.fare || p0.totalFare || 0;
+  }
+  if (!p) p = f.price || f.total || f.totalPrice || f.amount || 0;
+  if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(/\./g,"").replace(",",".")) || 0;
   return Math.round(p);
 }
 
@@ -291,52 +294,57 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   const cashOpts = [];
   const ptsOpts = [];
 
-  // Debug log
-  console.log("[DEBUG] leg:", leg, "directFlights:", (data.directFlights||[]).length, "flightGroups:", (data.flightGroups||[]).length);
+  console.log("[DEBUG] leg:", leg, "direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length);
   if ((data.directFlights||[]).length > 0) {
     const f0 = data.directFlights[0];
-    console.log("[DEBUG] first direct keys:", Object.keys(f0));
-    console.log("[DEBUG] first direct dep:", getDepTime(f0), "price:", getPrice(f0));
-    console.log("[DEBUG] first direct raw:", JSON.stringify(f0).slice(0,300));
+    console.log("[DEBUG] first direct pricingOptions raw:", JSON.stringify(f0.pricingOptions || f0.offers || []).slice(0, 400));
   }
 
-  const directList = data.directFlights || [];
-  for (const f of directList) {
-    const dep = getDepTime(f);
-    const h = parseInt(dep.split(":")[0] || "0");
-    const price = getPrice(f);
-    cashOpts.push({ airline:getAirlineFromFlight(f), payment_type:"cash", departure:dep, arrival:getArrTime(f), price:price||0, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:"direto" });
-  }
+  const buildOpt = (f, note) => {
+    const rioPort = isMonday ? (f._dest || dest) : (f._orig || origin);
+    const fOrig   = isMonday ? "CNF" : rioPort;
+    const fDest   = isMonday ? rioPort : "CNF";
+    return {
+      airline: getAirlineFromFlight(f),
+      payment_type: "cash",
+      departure: getDepTime(f),
+      arrival: getArrTime(f),
+      price: getPrice(f) || 0,
+      currency: "BRL",
+      link: f.deepLink || gLink(fOrig, fDest, date),
+      note,
+      airport: rioPort,
+      sduPreferred: f._pref !== false,
+    };
+  };
 
+  for (const f of (data.directFlights || [])) {
+    cashOpts.push(buildOpt(f, "direto"));
+  }
   if (cashOpts.length === 0) {
-    const all = data.flightGroups || [];
-    for (const f of all) {
-      const dep = getDepTime(f);
-      const h = parseInt(dep.split(":")[0] || "0");
-      const price = getPrice(f);
+    for (const f of (data.flightGroups || [])) {
       const nsegs = getSegs(f).length;
-      cashOpts.push({ airline:getAirlineFromFlight(f), payment_type:"cash", departure:dep, arrival:getArrTime(f), price, currency:"BRL", link:f.deepLink||gLink(origin,dest,date), note:nsegs>1?"com escala":"direto" });
-      if (cashOpts.length >= 5) break;
+      cashOpts.push(buildOpt(f, nsegs > 1 ? "com escala" : "direto"));
+      if (cashOpts.length >= 10) break;
     }
   }
-
   cashOpts.sort((a,b) => a.price - b.price);
 
   const miles = data.milesGroups || [];
   for (const m of miles) {
-    const prog = ((m.pointsType||m.providerId)||"").toLowerCase();
+    const prog = ((m.pointsType||m.providerId||m.program||m.type)||"").toLowerCase();
     if (prog !== "tudo_azul" && prog !== "tudoazul" && prog !== "smiles") continue;
-    const pts = m.pointsRequired || 0;
+    const pts = m.pointsRequired || m.points || m.miles || 0;
     if (!pts) continue;
     const depM = (m.departureDateTime||"").indexOf("T") >= 0 ? m.departureDateTime.split("T")[1].slice(0,5) : "";
-    const hm = parseInt(depM.split(":")[0]||"0");
-    const taxas = Math.round(m.taxAmount||0);
+    const taxas = Math.round(m.taxAmount||m.taxes||0);
     const ptsBRL = Math.round(pts * POINTS_RATE);
-    ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"Azul", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link:prog.indexOf("smiles")>=0?"https://www.smiles.com.br/passagens-aereas?originAirport="+origin+"&destinationAirport="+dest+"&departureDate="+date+"&adults=1":"https://www.tudoazul.com.br/voos?origem="+origin+"&destino="+dest+"&dataIda="+date, note:prog.indexOf("smiles")>=0?"Smiles":"TudoAzul" });
+    const isSmiles = prog.indexOf("smiles") >= 0;
+    ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"Azul", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link:isSmiles?"https://www.smiles.com.br/passagens-aereas?originAirport="+origin+"&destinationAirport="+dest+"&departureDate="+date+"&adults=1":"https://www.tudoazul.com.br/voos?origem="+origin+"&destino="+dest+"&dataIda="+date, note:isSmiles?"Smiles":"TudoAzul" });
   }
   ptsOpts.sort((a,b) => (a.points_value_brl+a.taxas)-(b.points_value_brl+b.taxas));
 
-  const allOpts = cashOpts.slice(0,3).concat(ptsOpts.slice(0,1));
+  const allOpts = cashOpts.slice(0,6).concat(ptsOpts.slice(0,2));
   const cheapCash = cashOpts[0] ? cashOpts[0].price : null;
   const cheapPts = ptsOpts[0] ? (ptsOpts[0].points_value_brl+ptsOpts[0].taxas) : null;
   const bestDeal = (cheapPts !== null && cheapCash !== null && cheapPts < cheapCash) ? "points" : "cash";
@@ -346,27 +354,47 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
 
 async function searchFlights(monStr, missingLegs) {
   const tue = addDays(monStr, 1);
-  const searches = missingLegs.map(leg => {
+
+  const legResults = await Promise.all(missingLegs.map(async leg => {
     const isMonday = leg === "mon";
-    return { leg, date:isMonday?monStr:tue, origin:isMonday?"CNF":"SDU", dest:isMonday?"SDU":"CNF" };
-  });
-  const legResults = await Promise.all(searches.map(async s => {
-    const body = { type:"one_way", slices:[{origin:s.origin,destination:s.dest,departureDate:s.date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"] };
-    const res = await fetch(PROXY_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
-    console.log("[DEBUG] fetch status:", res.status);
-    if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
-    const data = await res.json();
-    console.log("[DEBUG] server response keys:", Object.keys(data));
-    console.log("[DEBUG] flightGroups:", (data.flightGroups||[]).length, "directFlights:", (data.directFlights||[]).length);
-    console.log("[DEBUG] raw sample:", JSON.stringify(data).slice(0,500));
-    return normaliseSyncResponse(data, s.leg, s.origin, s.dest, s.date);
+    const date = isMonday ? monStr : tue;
+
+    // Search both Rio airports in parallel — SDU is preferred, GIG is alternative
+    const airports = isMonday
+      ? [{orig:"CNF", dest:"SDU", pref:true}, {orig:"CNF", dest:"GIG", pref:false}]
+      : [{orig:"SDU", dest:"CNF", pref:true}, {orig:"GIG", dest:"CNF", pref:false}];
+
+    const apiResults = await Promise.all(airports.map(async ({orig, dest, pref}) => {
+      try {
+        const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
+        const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+        if (!res.ok) { console.log("[DEBUG] "+orig+"→"+dest+" err:", res.status); return null; }
+        const data = await res.json();
+        console.log("[DEBUG] "+orig+"→"+dest+" direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length);
+        const tag = f => ({...f, _orig:orig, _dest:dest, _pref:pref});
+        return {
+          directFlights: (data.directFlights||[]).map(tag),
+          flightGroups:  (data.flightGroups||[]).map(tag),
+          milesGroups:   data.milesGroups||[],
+        };
+      } catch(e) { console.log("[DEBUG] fetch error:", e.message); return null; }
+    }));
+
+    // Merge results from both airports
+    const merged = {directFlights:[], flightGroups:[], milesGroups:[]};
+    for (const r of apiResults.filter(Boolean)) {
+      merged.directFlights.push(...r.directFlights);
+      merged.flightGroups.push(...r.flightGroups);
+      merged.milesGroups.push(...r.milesGroups);
+    }
+    console.log("[DEBUG] leg", leg, "merged direct:", merged.directFlights.length, "all:", merged.flightGroups.length);
+
+    return normaliseSyncResponse(merged, leg, isMonday?"CNF":"Rio", isMonday?"Rio":"CNF", date);
   }));
-  // Filter out empty results and retry if needed
-  const validResults = legResults.filter(r => r && r.options && r.options.length > 0);
-  const total = validResults.reduce((s,r) => s+r.options.length, 0);
-  // If some legs have no results, still show what we have
+
   const allResults = legResults.filter(Boolean);
-  return { results:allResults, summary:total+" voos encontrados · "+new Date().toLocaleTimeString("pt-BR") };
+  const total = allResults.reduce((s,r) => s+(r.options||[]).length, 0);
+  return {results:allResults, summary:total+" voos encontrados · "+new Date().toLocaleTimeString("pt-BR")};
 }
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
@@ -581,9 +609,11 @@ function optionCardHTML(opt, isRec, isApproved, route, monStr, leg) {
         <div class="option-name">
           <span>${isPoints?"🔵":"✈"} ${opt.airline}</span>
           <span class="option-badge" style="background:${badgeBg};color:${badgeColor}">${isPoints?"PONTOS":"DINHEIRO"}</span>
+          ${opt.airport?`<span class="option-badge" style="background:${opt.airport==="SDU"?"#14532d33":"#37415133"};color:${opt.airport==="SDU"?"#86efac":"#9ca3af"}">${opt.airport}</span>`:""}
           <span style="font-size:13px;color:#9ca3af">${opt.departure}${opt.arrival?" → "+opt.arrival:""}</span>
         </div>
         <div class="option-route">${route} · ${opt.note||""}</div>
+        ${opt.airport==="SDU"?'<div class="option-note">⭐ SDU — aeroporto preferido (centro do Rio)</div>':opt.airport==="GIG"?'<div class="option-note" style="color:#9ca3af">GIG — Aeroporto Galeão</div>':""}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
         <div class="option-price">${priceHTML}${linkHTML}</div>

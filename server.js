@@ -78,6 +78,11 @@ app.post("/api/search", async (req, res) => {
             } else if (currentEvent === "flight-update") {
               const groups = data.newGroups || data.flightGroups || [];
               flightGroups = flightGroups.concat(groups);
+              if (flightGroups.length === groups.length && groups.length > 0) {
+                console.log("==> First flight-update keys:", Object.keys(data));
+                console.log("==> First group keys:", Object.keys(groups[0]));
+                console.log("==> First pricingOptions raw:", JSON.stringify(groups[0].pricingOptions || groups[0].offers || []).slice(0, 800));
+              }
               console.log("==> Flight update, total:", flightGroups.length);
             } else if (currentEvent === "search-complete") {
               summary = data.summary || {};
@@ -112,9 +117,11 @@ app.post("/api/search", async (req, res) => {
     for (const f of unique) {
       const pricing = f.pricingOptions || f.offers || [];
       for (const p of pricing) {
-        const pts = p.miles || p.points || p.totalMiles || (p.pointsInfo && p.pointsInfo.totalPoints);
+        const pts = p.miles || p.points || p.totalMiles || p.totalPoints || p.milesAmount ||
+          (p.pointsInfo && (p.pointsInfo.totalPoints || p.pointsInfo.miles || p.pointsInfo.points)) ||
+          (p.loyalty && (p.loyalty.points || p.loyalty.miles));
         if (!pts) continue;
-        const prog = (p.program || p.milesProgram || p.pointsType || "").toLowerCase();
+        const prog = (p.program || p.milesProgram || p.pointsType || p.loyaltyProgram || p.provider || p.type || "").toLowerCase();
         miles.push({
           airline: getAirline(f),
           departureDateTime: getDepDateTime(f),
@@ -218,6 +225,10 @@ function getAirline(f) {
 
 function getPrice(f) {
   const p = f.pricingOptions || f.offers || [];
-  if (p.length > 0) return p[0].totalPrice || p[0].total || p[0].price || 0;
-  return f.price || f.total || 0;
+  if (p.length > 0) {
+    const p0 = p[0];
+    return p0.totalPrice || p0.total || p0.price || p0.amount ||
+           p0.grandTotal || p0.totalAmount || p0.fare || p0.totalFare || 0;
+  }
+  return f.price || f.total || f.totalPrice || f.amount || 0;
 }
