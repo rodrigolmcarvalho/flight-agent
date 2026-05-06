@@ -115,22 +115,26 @@ app.post("/api/search", async (req, res) => {
     // Extract miles
     const miles = [];
     for (const f of unique) {
-      const pricing = f.pricingOptions || f.offers || [];
+      const pricing = getPricing(f);
       for (const p of pricing) {
-        const pts = p.miles || p.points || p.totalMiles || p.totalPoints || p.milesAmount ||
-          (p.pointsInfo && (p.pointsInfo.totalPoints || p.pointsInfo.miles || p.pointsInfo.points)) ||
-          (p.loyalty && (p.loyalty.points || p.loyalty.miles));
+        const info = p.pointsInfo || p.milesInfo || {};
+        const pts = info.totalPoints || info.points || info.miles ||
+          p.miles || p.points || p.totalMiles || p.totalPoints || p.milesAmount || 0;
         if (!pts) continue;
-        const prog = (p.program || p.milesProgram || p.pointsType || p.loyaltyProgram || p.provider || p.type || "").toLowerCase();
+        const prog = (info.pointsType || info.program || p.program || p.milesProgram ||
+          p.pointsType || p.loyaltyProgram || p.provider || p.type || "").toLowerCase();
+        const taxAmt = p.taxes && typeof p.taxes === "object"
+          ? (p.taxes.amount || 0)
+          : (p.taxes || p.taxAmount || 0);
         miles.push({
           airline: getAirline(f),
           departureDateTime: getDepDateTime(f),
           arrivalDateTime: getArrDateTime(f),
           pointsRequired: pts,
           pointsType: prog,
-          taxAmount: p.taxes || p.taxAmount || 0,
-          totalCashEquivalent: (pts * 0.014) + (p.taxes || p.taxAmount || 0),
-          providerId: p.provider || p.providerId || "",
+          taxAmount: taxAmt,
+          totalCashEquivalent: (pts * 0.014) + taxAmt,
+          providerId: p.provider || p.providerId || info.program || "",
           flightSignature: f.signature || "",
         });
       }
@@ -223,8 +227,15 @@ function getAirline(f) {
   return f.airline || "";
 }
 
+function getPricing(f) {
+  // pricingOptions may exist as [] (empty, truthy) — fall through to offers in that case
+  if (f.pricingOptions && f.pricingOptions.length) return f.pricingOptions;
+  if (f.offers && f.offers.length) return f.offers;
+  return [];
+}
+
 function getPrice(f) {
-  const p = f.pricingOptions || f.offers || [];
+  const p = getPricing(f);
   if (p.length > 0) {
     const p0 = p[0];
     return p0.totalPrice || p0.total || p0.price || p0.amount ||

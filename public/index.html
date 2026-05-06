@@ -277,9 +277,14 @@ function getArrTime(f) {
   return arr.indexOf("T") >= 0 ? arr.slice(11,16) : arr.slice(0,5);
 }
 
+function getPricing(f) {
+  if (f.pricingOptions && f.pricingOptions.length) return f.pricingOptions;
+  if (f.offers && f.offers.length) return f.offers;
+  return [];
+}
 function getPrice(f) {
   let p = 0;
-  const pricing = f.pricingOptions || f.offers || [];
+  const pricing = getPricing(f);
   if (pricing.length > 0) {
     const p0 = pricing[0];
     p = p0.totalPrice || p0.total || p0.price || p0.amount || p0.grandTotal || p0.totalAmount || p0.fare || p0.totalFare || 0;
@@ -358,38 +363,27 @@ async function searchFlights(monStr, missingLegs) {
   const legResults = await Promise.all(missingLegs.map(async leg => {
     const isMonday = leg === "mon";
     const date = isMonday ? monStr : tue;
+    // SDU is preferred; if the API returns GIG results naturally they'll still appear
+    const orig = isMonday ? "CNF" : "SDU";
+    const dest = isMonday ? "SDU" : "CNF";
 
-    // Search both Rio airports in parallel — SDU is preferred, GIG is alternative
-    const airports = isMonday
-      ? [{orig:"CNF", dest:"SDU", pref:true}, {orig:"CNF", dest:"GIG", pref:false}]
-      : [{orig:"SDU", dest:"CNF", pref:true}, {orig:"GIG", dest:"CNF", pref:false}];
-
-    const apiResults = await Promise.all(airports.map(async ({orig, dest, pref}) => {
-      try {
-        const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
-        const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-        if (!res.ok) { console.log("[DEBUG] "+orig+"→"+dest+" err:", res.status); return null; }
-        const data = await res.json();
-        console.log("[DEBUG] "+orig+"→"+dest+" direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length);
-        const tag = f => ({...f, _orig:orig, _dest:dest, _pref:pref});
-        return {
-          directFlights: (data.directFlights||[]).map(tag),
-          flightGroups:  (data.flightGroups||[]).map(tag),
-          milesGroups:   data.milesGroups||[],
-        };
-      } catch(e) { console.log("[DEBUG] fetch error:", e.message); return null; }
-    }));
-
-    // Merge results from both airports
-    const merged = {directFlights:[], flightGroups:[], milesGroups:[]};
-    for (const r of apiResults.filter(Boolean)) {
-      merged.directFlights.push(...r.directFlights);
-      merged.flightGroups.push(...r.flightGroups);
-      merged.milesGroups.push(...r.milesGroups);
+    try {
+      const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
+      const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+      console.log("[DEBUG] fetch status:", res.status);
+      if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
+      const data = await res.json();
+      console.log("[DEBUG] "+orig+"→"+dest+" direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length);
+      const tag = f => ({...f, _orig:orig, _dest:dest, _pref:true});
+      return normaliseSyncResponse({
+        directFlights: (data.directFlights||[]).map(tag),
+        flightGroups:  (data.flightGroups||[]).map(tag),
+        milesGroups:   data.milesGroups||[],
+      }, leg, orig, dest, date);
+    } catch(e) {
+      console.log("[DEBUG] search error:", e.message);
+      return normaliseSyncResponse({directFlights:[], flightGroups:[], milesGroups:[]}, leg, orig, dest, date);
     }
-    console.log("[DEBUG] leg", leg, "merged direct:", merged.directFlights.length, "all:", merged.flightGroups.length);
-
-    return normaliseSyncResponse(merged, leg, isMonday?"CNF":"Rio", isMonday?"Rio":"CNF", date);
   }));
 
   const allResults = legResults.filter(Boolean);
