@@ -399,7 +399,8 @@ function render() {
 }
 
 function renderPills() {
-  const weeks = Object.keys(EXISTING_FLIGHTS).sort();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const weeks = Object.keys(EXISTING_FLIGHTS).sort().filter(mon => addDays(mon,1) >= todayStr);
   const missing = weeks.filter(mon => { const s=getWeekStatus(mon); return s.type==="missing"||s.type==="partial"; }).length;
   const apprCount = Object.keys(state.approved).length;
   const confCount = Object.keys(state.confirmed).length;
@@ -411,7 +412,8 @@ function renderPills() {
 }
 
 function renderDashboard() {
-  const weeks = Object.keys(EXISTING_FLIGHTS).sort();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const weeks = Object.keys(EXISTING_FLIGHTS).sort().filter(mon => addDays(mon,1) >= todayStr);
   const byMonth = {};
   weeks.forEach(mon => {
     const m = fmtMonth(mon);
@@ -482,7 +484,9 @@ function flightLineHTML(label, flight, extra, isConf, isAppr) {
 }
 
 function renderSearch() {
+  const todayStr = new Date().toISOString().split("T")[0];
   const weeks = Object.keys(EXISTING_FLIGHTS).sort().filter(mon => {
+    if (addDays(mon,1) < todayStr) return false;
     const s = getWeekStatus(mon);
     return s.type==="missing"||s.type==="partial";
   });
