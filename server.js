@@ -117,15 +117,18 @@ app.post("/api/search", async (req, res) => {
     for (const f of unique) {
       const pricing = getPricing(f);
       for (const p of pricing) {
-        const info = p.pointsInfo || p.milesInfo || {};
+        // Real API: pointsInfo lives inside offer.price, not directly on the offer
+        const priceObj = p.price && typeof p.price === "object" ? p.price : {};
+        const info = priceObj.pointsInfo || p.pointsInfo || p.milesInfo || {};
         const pts = info.totalPoints || info.points || info.miles ||
-          p.miles || p.points || p.totalMiles || p.totalPoints || p.milesAmount || 0;
+          p.miles || p.points || p.totalMiles || p.totalPoints || 0;
         if (!pts) continue;
-        const prog = (info.pointsType || info.program || p.program || p.milesProgram ||
-          p.pointsType || p.loyaltyProgram || p.provider || p.type || "").toLowerCase();
-        const taxAmt = p.taxes && typeof p.taxes === "object"
-          ? (p.taxes.amount || 0)
-          : (p.taxes || p.taxAmount || 0);
+        const prog = (info.pointsType || info.program ||
+          p.providerId || p.program || p.pointsType || "").toLowerCase();
+        // Taxes come as an array [{code, amount}] inside offer.price.taxes
+        const taxAmt = Array.isArray(priceObj.taxes)
+          ? priceObj.taxes.reduce((s, t) => s + (t.amount || 0), 0)
+          : (typeof p.taxes === "object" && p.taxes ? (p.taxes.amount || 0) : (p.taxes || p.taxAmount || 0));
         miles.push({
           airline: getAirline(f),
           departureDateTime: getDepDateTime(f),
@@ -134,7 +137,7 @@ app.post("/api/search", async (req, res) => {
           pointsType: prog,
           taxAmount: taxAmt,
           totalCashEquivalent: (pts * 0.014) + taxAmt,
-          providerId: p.provider || p.providerId || info.program || "",
+          providerId: p.providerId || priceObj.source || prog,
           flightSignature: f.signature || "",
         });
       }
@@ -228,18 +231,22 @@ function getAirline(f) {
 }
 
 function getPricing(f) {
-  // pricingOptions may exist as [] (empty, truthy) — fall through to offers in that case
   if (f.pricingOptions && f.pricingOptions.length) return f.pricingOptions;
   if (f.offers && f.offers.length) return f.offers;
   return [];
 }
 
+function extractPrice(offer) {
+  // Real API shape: offer.price is an object {total, baseFare, taxes:[]}
+  const pr = offer.price;
+  if (pr && typeof pr === "object") return pr.total || pr.baseFare || pr.grandTotal || 0;
+  // Fallback: price as flat number on the offer itself
+  return offer.totalPrice || offer.total || (typeof pr === "number" ? pr : 0) ||
+         offer.amount || offer.grandTotal || offer.fare || 0;
+}
+
 function getPrice(f) {
   const p = getPricing(f);
-  if (p.length > 0) {
-    const p0 = p[0];
-    return p0.totalPrice || p0.total || p0.price || p0.amount ||
-           p0.grandTotal || p0.totalAmount || p0.fare || p0.totalFare || 0;
-  }
+  if (p.length > 0) return extractPrice(p[0]);
   return f.price || f.total || f.totalPrice || f.amount || 0;
 }

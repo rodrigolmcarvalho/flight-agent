@@ -282,13 +282,14 @@ function getPricing(f) {
   if (f.offers && f.offers.length) return f.offers;
   return [];
 }
+function extractPrice(offer) {
+  const pr = offer.price;
+  if (pr && typeof pr === "object") return pr.total || pr.baseFare || pr.grandTotal || 0;
+  return offer.totalPrice || offer.total || (typeof pr === "number" ? pr : 0) || offer.amount || offer.grandTotal || offer.fare || 0;
+}
 function getPrice(f) {
-  let p = 0;
   const pricing = getPricing(f);
-  if (pricing.length > 0) {
-    const p0 = pricing[0];
-    p = p0.totalPrice || p0.total || p0.price || p0.amount || p0.grandTotal || p0.totalAmount || p0.fare || p0.totalFare || 0;
-  }
+  let p = pricing.length > 0 ? extractPrice(pricing[0]) : 0;
   if (!p) p = f.price || f.total || f.totalPrice || f.amount || 0;
   if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(/\./g,"").replace(",",".")) || 0;
   return Math.round(p);
@@ -335,17 +336,26 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   }
   cashOpts.sort((a,b) => a.price - b.price);
 
+  const MILES_LINKS = {
+    smiles:   (o,d,dt) => "https://www.smiles.com.br/passagens-aereas?originAirport="+o+"&destinationAirport="+d+"&departureDate="+dt+"&adults=1",
+    tudoazul: (o,d,dt) => "https://www.tudoazul.com.br/voos?origem="+o+"&destino="+d+"&dataIda="+dt,
+    tudo_azul:(o,d,dt) => "https://www.tudoazul.com.br/voos?origem="+o+"&destino="+d+"&dataIda="+dt,
+    livelo:   ()       => "https://www.livelo.com.br/use-seus-pontos-passagens",
+    azul:     (o,d,dt) => "https://www.tudoazul.com.br/voos?origem="+o+"&destino="+d+"&dataIda="+dt,
+  };
   const miles = data.milesGroups || [];
   for (const m of miles) {
     const prog = ((m.pointsType||m.providerId||m.program||m.type)||"").toLowerCase();
-    if (prog !== "tudo_azul" && prog !== "tudoazul" && prog !== "smiles") continue;
     const pts = m.pointsRequired || m.points || m.miles || 0;
     if (!pts) continue;
     const depM = (m.departureDateTime||"").indexOf("T") >= 0 ? m.departureDateTime.split("T")[1].slice(0,5) : "";
-    const taxas = Math.round(m.taxAmount||m.taxes||0);
+    const taxas = Math.round(m.taxAmount||0);
     const ptsBRL = Math.round(pts * POINTS_RATE);
-    const isSmiles = prog.indexOf("smiles") >= 0;
-    ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"Azul", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link:isSmiles?"https://www.smiles.com.br/passagens-aereas?originAirport="+origin+"&destinationAirport="+dest+"&departureDate="+date+"&adults=1":"https://www.tudoazul.com.br/voos?origem="+origin+"&destino="+dest+"&dataIda="+date, note:isSmiles?"Smiles":"TudoAzul" });
+    const progKey = Object.keys(MILES_LINKS).find(k => prog.includes(k)) || "";
+    const linkFn = MILES_LINKS[progKey];
+    const link = linkFn ? linkFn(origin, dest, date) : gLink(origin, dest, date);
+    const label = prog.includes("smiles")?"Smiles":prog.includes("azul")?"TudoAzul":prog.includes("livelo")?"Livelo":prog;
+    ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link, note:label });
   }
   ptsOpts.sort((a,b) => (a.points_value_brl+a.taxas)-(b.points_value_brl+b.taxas));
 
