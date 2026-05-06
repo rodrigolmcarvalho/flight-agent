@@ -162,9 +162,10 @@ app.listen(PORT, () => console.log("Server running on port " + PORT));
 
 // ─── HELPERS com estrutura real da API ───────────────────────────────────────
 function getSegments(f) {
-  if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0]) {
+  if (Array.isArray(f.flightInfo) && f.flightInfo[0])
+    return f.flightInfo[0].segments || [];
+  if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
     return f.flightInfo.itineraries[0].segments || [];
-  }
   if (f.slices && f.slices[0]) return f.slices[0].segments || [];
   return [];
 }
