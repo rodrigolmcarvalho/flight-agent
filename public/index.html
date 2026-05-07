@@ -382,28 +382,28 @@ async function doRoundTripSearch(monStr, tue) {
       if (seenSigs.has(sig)) continue;
       seenSigs.add(sig);
 
-      // Find cheapest offer and use outboundTotal/inboundTotal for accurate per-leg pricing
-      let outPrice = 0, inPrice = 0, rtTotal = 0;
+      // Per-leg price: min(price.outboundTotal, extractPrice(offer)/2) across all offers.
+      // outboundTotal is the API's explicit per-leg breakdown; extractPrice/2 catches cases
+      // where the real fare lives at offer.baseFare (top-level) and outboundTotal is inflated.
+      let bestPerLeg = Infinity, bestRtTotal = 0;
       for (const p of getPricing(f)) {
         const pr = p.price && typeof p.price === "object" ? p.price : {};
-        const out = Number(pr.outboundTotal) || 0;
-        const inp = Number(pr.inboundTotal)  || 0;
-        const tot = Number(pr.total) || 0;
-        if (out > 0 && (!outPrice || tot < rtTotal)) {
-          outPrice = out; inPrice = inp; rtTotal = tot;
+        const fromOut = Number(pr.outboundTotal) || Infinity;
+        const fromExtract = extractPrice(p) / 2;
+        const perLeg = Math.min(
+          fromOut < Infinity ? fromOut : Infinity,
+          fromExtract > 0   ? fromExtract : Infinity
+        );
+        const tot = Number(pr.total) || (extractPrice(p) || 0);
+        if (perLeg > 0 && perLeg < bestPerLeg) {
+          bestPerLeg = perLeg;
+          bestRtTotal = tot;
         }
       }
-      if (!outPrice) {
-        const full = Math.round(getPrice(f));
-        if (!full) continue;
-        outPrice = Math.round(full / 2);
-        inPrice  = outPrice;
-        rtTotal  = full;
-      }
-      outPrice = Math.round(outPrice);
-      inPrice  = Math.round(inPrice);
-      rtTotal  = Math.round(rtTotal);
-      if (!outPrice) continue;
+      if (!isFinite(bestPerLeg) || bestPerLeg <= 0) continue;
+      const outPrice = Math.round(bestPerLeg);
+      const inPrice  = outPrice;
+      const rtTotal  = Math.round(bestRtTotal);
       const airline = getAirlineName(f);
 
       const outSegs = getSegs(f);
