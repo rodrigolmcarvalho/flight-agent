@@ -274,10 +274,8 @@ function getPricing(f) {
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
-    if (offer.providerId === "livelo")
-      return pr.baseFare || pr.adultPrice || pr.companyPrice || pr.total || 0;
-    return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
-           pr.totalAmount || pr.fare || pr.totalFare || 0;
+    return pr.baseFare || pr.adultPrice || pr.companyPrice ||
+           pr.total || pr.grandTotal || pr.amount || pr.totalAmount || pr.fare || pr.totalFare || 0;
   }
   if (typeof pr === "number" && pr > 0) return pr;
   return offer.totalPrice || offer.total || offer.totalAmount ||

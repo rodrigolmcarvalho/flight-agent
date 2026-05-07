@@ -120,13 +120,16 @@ app.post("/api/search", async (req, res) => {
     direct.sort((a, b) => getPrice(a) - getPrice(b));
     console.log("==> Direct:", direct.length);
 
-    // Log first Gol direct pricingOptions so we can verify the R$2159 price
-    const golDirect = direct.find(f => getAirline(f) === "Gol");
-    if (golDirect) {
-      console.log("==> Gol direct computedPrice:", getPrice(golDirect));
-      console.log("==> Gol direct pricingOptions RAW:", JSON.stringify(getPricing(golDirect)));
-    } else {
-      console.log("==> No Gol direct flight found in this search");
+    // Log every pricingOption for first Azul and first Gol direct flight
+    for (const airline of ["Azul", "Gol"]) {
+      const fl = direct.find(f => getAirline(f) === airline);
+      if (!fl) { console.log(`==> ${airline}: no direct found`); continue; }
+      const opts = getPricing(fl);
+      console.log(`==> ${airline} dep=${getDepTime(fl)} opts=${opts.length} computedMin=${getPrice(fl)}`);
+      opts.forEach((p, i) => {
+        const pr = p.price && typeof p.price === "object" ? p.price : {};
+        console.log(`    [${i}] providerId=${p.providerId} baseFare=${pr.baseFare} total=${pr.total} adultPrice=${pr.adultPrice} extracted=${extractPrice(p)}`);
+      });
     }
 
     // Miles from all flights
@@ -213,10 +216,10 @@ function getPricing(f) {
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
-    if (offer.providerId === "livelo")
-      return pr.baseFare || pr.adultPrice || pr.companyPrice || pr.total || 0;
-    return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
-           pr.totalAmount || pr.fare || pr.totalFare || 0;
+    // baseFare is always the real ticket cost — for Livelo price.total adds a ~R$3100
+    // platform fee on top, so we must prefer baseFare regardless of providerId.
+    return pr.baseFare || pr.adultPrice || pr.companyPrice ||
+           pr.total || pr.grandTotal || pr.amount || pr.totalAmount || pr.fare || pr.totalFare || 0;
   }
   if (typeof pr === "number" && pr > 0) return pr;
   return offer.totalPrice || offer.total || offer.totalAmount ||
