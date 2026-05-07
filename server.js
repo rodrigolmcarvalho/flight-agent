@@ -112,8 +112,16 @@ app.post("/api/search", async (req, res) => {
         if (fi[1]) console.log("  flightInfo[1] segs:", (fi[1].segments||[]).length);
       }
       if (f0.slices) console.log("==> [RT] slices:", f0.slices.map((s,i)=>`slice[${i}] segs=${(s.segments||[]).length}`));
-      const p0 = getPricing(f0)[0];
-      if (p0) console.log("==> [RT] First pricingOption price fields:", JSON.stringify(p0.price));
+
+      // Find first Azul SDU direct round-trip flight and dump its COMPLETE pricingOptions
+      const azulSDU = unique.find(f => getAirline(f) === "Azul" && getSegments(f).length === 1 &&
+        (getSegments(f)[0].departure || {}).iataCode === "CNF");
+      const dumpTarget = azulSDU || f0;
+      const pricing = getPricing(dumpTarget);
+      console.log(`==> [RT-DUMP] airline=${getAirline(dumpTarget)} dep=${getDepTime(dumpTarget)} pricingOptions.length=${pricing.length}`);
+      pricing.forEach((p, i) => {
+        console.log(`==> [RT-DUMP] pricingOptions[${i}] FULL:`, JSON.stringify(p));
+      });
     }
 
     // Airline breakdown
