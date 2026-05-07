@@ -230,11 +230,6 @@ function getSegments(f) {
   if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
     return f.flightInfo.itineraries[0].segments || [];
   if (f.slices && f.slices[0]) return f.slices[0].segments || [];
-  if (Array.isArray(f.segments) && f.segments.length > 0) return f.segments;
-  if (Array.isArray(f.itineraries) && f.itineraries[0])
-    return f.itineraries[0].segments || [];
-  if (Array.isArray(f.legs) && f.legs[0])
-    return f.legs[0].segments || f.legs || [];
   return [];
 }
 

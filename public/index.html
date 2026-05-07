@@ -249,11 +249,6 @@ function getSegs(f) {
   if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
     return f.flightInfo.itineraries[0].segments || [];
   if (f.slices && f.slices[0]) return f.slices[0].segments || [];
-  if (Array.isArray(f.segments) && f.segments.length > 0) return f.segments;
-  if (Array.isArray(f.itineraries) && f.itineraries[0])
-    return f.itineraries[0].segments || [];
-  if (Array.isArray(f.legs) && f.legs[0])
-    return f.legs[0].segments || f.legs || [];
   return [];
 }
 function getDepTime(f) {
@@ -429,13 +424,24 @@ async function searchFlights(monStr, missingLegs) {
       }
     }));
 
+    // Log per-airport direct counts before merging
+    for (const [i, apt] of ["SDU","GIG"].entries()) {
+      const d = apiResults[i] || {};
+      const ro = isMonday ? "CNF" : apt, rd = isMonday ? apt : "CNF";
+      const nD = (d.directFlights||[]).length;
+      const byAirline = {};
+      (d.directFlights||[]).forEach(f => { const a = getAirlineFromFlight(f)||"?"; byAirline[a]=(byAirline[a]||0)+1; });
+      const azulDeps = (d.directFlights||[]).filter(f=>getAirlineFromFlight(f)==="Azul").map(f=>getDepTime(f)).sort();
+      console.log(`[PRE-MERGE] ${ro}→${rd}: directFlights=${nD} airlines=${JSON.stringify(byAirline)} Azul deps=[${azulDeps}]`);
+    }
+
     // Merge SDU and GIG results
     const merged = {
       directFlights: apiResults.flatMap(d => d.directFlights||[]),
       flightGroups:  apiResults.flatMap(d => d.flightGroups||[]),
       milesGroups:   apiResults.flatMap(d => d.milesGroups||[]),
     };
-    console.log("[DEBUG] merged leg="+leg+" direct:", merged.directFlights.length, "all:", merged.flightGroups.length, "miles:", merged.milesGroups.length);
+    console.log(`[MERGED] leg=${leg}: directFlights=${merged.directFlights.length} miles=${merged.milesGroups.length}`);
 
     const orig = isMonday ? "CNF" : "RIO";
     const dest = isMonday ? "RIO" : "CNF";
