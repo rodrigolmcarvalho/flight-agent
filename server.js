@@ -21,7 +21,8 @@ app.get("/health", (req, res) => {
 });
 
 app.post("/api/search", async (req, res) => {
-  console.log("==> Search:", JSON.stringify(req.body).slice(0, 150));
+  const isRoundTrip = req.body && req.body.type === "round_trip";
+  console.log("==> Search type=" + (isRoundTrip ? "round_trip" : "one_way") + ":", JSON.stringify(req.body).slice(0, 150));
   try {
     const upstream = await fetch(BASE_URL + "/stream", {
       method: "POST",
@@ -98,11 +99,21 @@ app.post("/api/search", async (req, res) => {
     }
     console.log("==> Collected:", flightGroups.length, "Unique:", unique.length);
 
-    // Log first flight's raw pricingOptions for price debugging
-    if (unique.length > 0) {
+    // For round_trip: log the structure of the first flight group so we can see
+    // how outbound/return legs are stored
+    if (isRoundTrip && unique.length > 0) {
       const f0 = unique[0];
-      console.log("==> flightInfo type:", Array.isArray(f0.flightInfo) ? "array[" + f0.flightInfo.length + "]" : typeof f0.flightInfo);
-      console.log("==> First flight pricingOptions RAW:", JSON.stringify(getPricing(f0)).slice(0, 600));
+      const fi = Array.isArray(f0.flightInfo) ? f0.flightInfo : null;
+      console.log("==> [RT] flightInfo:", fi ? "array["+fi.length+"]" : typeof f0.flightInfo);
+      if (fi && fi[0]) {
+        const itins = fi[0].itineraries;
+        if (Array.isArray(itins)) itins.forEach((it,i) => console.log(`  itin[${i}] segs=${(it.segments||[]).length}`));
+        else console.log("  no itineraries in flightInfo[0]; keys:", Object.keys(fi[0]));
+        if (fi[1]) console.log("  flightInfo[1] segs:", (fi[1].segments||[]).length);
+      }
+      if (f0.slices) console.log("==> [RT] slices:", f0.slices.map((s,i)=>`slice[${i}] segs=${(s.segments||[]).length}`));
+      const p0 = getPricing(f0)[0];
+      if (p0) console.log("==> [RT] First pricingOption price fields:", JSON.stringify(p0.price));
     }
 
     // Airline breakdown
@@ -110,13 +121,23 @@ app.post("/api/search", async (req, res) => {
     for (const f of unique) {
       const a = getAirline(f) || "?";
       byAirline[a] = (byAirline[a] || 0) + 1;
-      if (getSegments(f).length === 1) byAirlineDirect[a] = (byAirlineDirect[a] || 0) + 1;
+      const outDirect = getSegments(f).length === 1;
+      const retSegs = getReturnSegments(f);
+      const retDirect = retSegs.length === 0 || retSegs.length === 1;
+      if (outDirect && retDirect) byAirlineDirect[a] = (byAirlineDirect[a] || 0) + 1;
     }
     console.log("==> By airline (all):", JSON.stringify(byAirline));
     console.log("==> By airline (direct):", JSON.stringify(byAirlineDirect));
 
-    // Direct flights only (1 segment), sorted by price
-    const direct = unique.filter(f => getSegments(f).length === 1);
+    // Direct flights: outbound must have 1 segment; for round_trip, return leg too
+    const direct = unique.filter(f => {
+      if (getSegments(f).length !== 1) return false;
+      if (isRoundTrip) {
+        const ret = getReturnSegments(f);
+        if (ret.length > 0 && ret.length !== 1) return false;
+      }
+      return true;
+    });
     direct.sort((a, b) => getPrice(a) - getPrice(b));
     console.log("==> Direct:", direct.length);
 
@@ -169,7 +190,7 @@ app.post("/api/search", async (req, res) => {
     console.log("==> Miles:", miles.length);
 
     return res.json({
-      requestId, tokens,
+      requestId, tokens, isRoundTrip,
       summary: { totalFlights: unique.length, totalDirectFlights: direct.length, totalMilesOffers: miles.length },
       directFlights: direct,
       milesGroups: miles,
@@ -195,6 +216,18 @@ function getSegments(f) {
   if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
     return f.flightInfo.itineraries[0].segments || [];
   if (f.slices && f.slices[0]) return f.slices[0].segments || [];
+  return [];
+}
+
+function getReturnSegments(f) {
+  if (Array.isArray(f.flightInfo)) {
+    const fi0 = f.flightInfo[0];
+    if (fi0 && Array.isArray(fi0.itineraries) && fi0.itineraries[1]) return fi0.itineraries[1].segments || [];
+    if (f.flightInfo[1]) return f.flightInfo[1].segments || [];
+  }
+  if (f.flightInfo && Array.isArray(f.flightInfo.itineraries) && f.flightInfo.itineraries[1])
+    return f.flightInfo.itineraries[1].segments || [];
+  if (f.slices && f.slices[1]) return f.slices[1].segments || [];
   return [];
 }
 

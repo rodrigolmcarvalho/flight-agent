@@ -301,47 +301,166 @@ function progLabel(prog) {
   return prog || "Pontos";
 }
 
+function getReturnSegs(f) {
+  if (Array.isArray(f.flightInfo)) {
+    const fi0 = f.flightInfo[0];
+    if (fi0 && Array.isArray(fi0.itineraries) && fi0.itineraries[1]) return fi0.itineraries[1].segments || [];
+    if (f.flightInfo[1]) return f.flightInfo[1].segments || [];
+  }
+  if (f.flightInfo && Array.isArray(f.flightInfo.itineraries) && f.flightInfo.itineraries[1])
+    return f.flightInfo.itineraries[1].segments || [];
+  if (f.slices && f.slices[1]) return f.slices[1].segments || [];
+  return [];
+}
+
+function segTime(seg, field) {
+  if (!seg || !seg[field]) return "";
+  return seg[field].time || (seg[field].dateTime || "").slice(11,16) || "";
+}
+
+function buildPtsOpts(allMiles) {
+  const opts = allMiles.map(m => ({
+    airline:        AIRLINE_MAP[m.airline] || m.airline || "",
+    departure:      m.departure || "",
+    arrival:        m.arrival || "",
+    points:         m.pointsRequired || 0,
+    program:        progLabel((m.pointsType || m.providerId || "").toLowerCase()),
+    taxas:          Math.round(m.taxAmount || 0),
+    cashEquivalent: m.cashEquivalent || Math.round((m.pointsRequired || 0) * POINTS_RATE + (m.taxAmount || 0)),
+    payment_type:   "points",
+  })).filter(o => o.points > 0);
+  opts.sort((a, b) => a.cashEquivalent - b.cashEquivalent);
+  return opts;
+}
+
 // ─── SEARCH ───────────────────────────────────────────────────────────────────
 async function searchFlights(monStr, missingLegs) {
   const tue = addDays(monStr, 1);
+  const bothMissing = missingLegs.includes("mon") && missingLegs.includes("tue");
 
+  if (bothMissing) {
+    // Round-trip: 2 API calls instead of 4, gets combined pricing
+    const rtResult = await doRoundTripSearch(monStr, tue);
+    const hasFlights = rtResult.results.some(r => r.cashOpts.length > 0);
+    if (hasFlights) return rtResult;
+    console.log("[RT] No results — falling back to one_way");
+  }
+  return doOneWaySearch(monStr, tue, missingLegs);
+}
+
+async function doRoundTripSearch(monStr, tue) {
+  const apiResults = await Promise.all(["SDU", "GIG"].map(async apt => {
+    const body = {
+      type: "round_trip",
+      slices: [
+        { origin: "CNF", destination: apt, departureDate: monStr },
+        { origin: apt,   destination: "CNF", departureDate: tue },
+      ],
+      passengers: [{ type: "adult", count: 1 }],
+      cabinClass: "economy",
+      include_miles: true,
+      miles_programs: ["tudo_azul","azul","smiles","gol","livelo","latam"],
+    };
+    try {
+      const res = await fetch(PROXY_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const byAl = {};
+      (data.directFlights||[]).forEach(f => { const a=getAirlineName(f)||"?"; byAl[a]=(byAl[a]||0)+1; });
+      console.log(`[RT CNF↔${apt}] direct=${(data.directFlights||[]).length} airlines=${JSON.stringify(byAl)} isRoundTrip=${data.isRoundTrip}`);
+      return { data, apt };
+    } catch(e) {
+      console.log(`[RT CNF↔${apt}] error:`, e.message);
+      return { data: { directFlights:[], milesGroups:[] }, apt };
+    }
+  }));
+
+  // Split each round-trip result into outbound (mon) + return (tue) per-leg options
+  const seenSigs = new Set();
+  const monCashOpts = [], tueCashOpts = [];
+
+  for (const { data, apt } of apiResults) {
+    for (const f of (data.directFlights || [])) {
+      const sig = f.signature || f.humanSignature || f.flightSignature || JSON.stringify(f).slice(0, 80);
+      if (seenSigs.has(sig)) continue;
+      seenSigs.add(sig);
+
+      const fullPrice = Math.round(getPrice(f));
+      if (!fullPrice) continue;
+      const perLeg = Math.round(fullPrice / 2);
+      const airline = getAirlineName(f);
+
+      const outSegs = getSegs(f);
+      if (outSegs.length === 1) {
+        monCashOpts.push({
+          airline, airport: apt, payment_type: "cash",
+          departure: segTime(outSegs[0], "departure"),
+          arrival:   segTime(outSegs[0], "arrival"),
+          price: perLeg, note: "ida+volta", roundTripTotal: fullPrice,
+        });
+      }
+
+      const retSegs = getReturnSegs(f);
+      if (retSegs.length === 1) {
+        tueCashOpts.push({
+          airline, airport: apt, payment_type: "cash",
+          departure: segTime(retSegs[0], "departure"),
+          arrival:   segTime(retSegs[0], "arrival"),
+          price: perLeg, note: "ida+volta", roundTripTotal: fullPrice,
+        });
+      }
+    }
+  }
+
+  monCashOpts.sort((a, b) => a.price - b.price);
+  tueCashOpts.sort((a, b) => a.price - b.price);
+
+  const allMiles = apiResults.flatMap(r => r.data.milesGroups || []);
+  const ptsOpts = buildPtsOpts(allMiles);
+  const total = monCashOpts.length + tueCashOpts.length;
+  console.log(`[RT MERGED] mon=${monCashOpts.length} tue=${tueCashOpts.length}`);
+
+  return {
+    results: [
+      { leg:"mon", date:monStr, cashOpts:monCashOpts, ptsOpts },
+      { leg:"tue", date:tue,    cashOpts:tueCashOpts, ptsOpts:[] },
+    ],
+    isRoundTrip: true,
+    summary: total + " combinações ida+volta · " + new Date().toLocaleTimeString("pt-BR"),
+  };
+}
+
+async function doOneWaySearch(monStr, tue, missingLegs) {
   const legResults = await Promise.all(missingLegs.map(async leg => {
     const isMonday = leg === "mon";
     const date = isMonday ? monStr : tue;
 
-    // Two parallel API calls: one per Rio airport
-    const apiResults = await Promise.all(["SDU", "GIG"].map(async apt => {
+    const apiResults = await Promise.all(["SDU","GIG"].map(async apt => {
       const orig = isMonday ? "CNF" : apt;
       const dest = isMonday ? apt   : "CNF";
       try {
         const body = {
           type: "one_way",
-          slices: [{ origin: orig, destination: dest, departureDate: date }],
-          passengers: [{ type: "adult", count: 1 }],
+          slices: [{ origin:orig, destination:dest, departureDate:date }],
+          passengers: [{ type:"adult", count:1 }],
           cabinClass: "economy",
           include_miles: true,
-          miles_programs: ["tudo_azul", "azul", "smiles", "gol", "livelo", "latam"],
+          miles_programs: ["tudo_azul","azul","smiles","gol","livelo","latam"],
         };
-        const res = await fetch(PROXY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        const res = await fetch(PROXY_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-        // Per-airport breakdown BEFORE merge
         const byAl = {};
-        (data.directFlights||[]).forEach(f => { const a = getAirlineName(f)||"?"; byAl[a]=(byAl[a]||0)+1; });
-        const deps = (data.directFlights||[]).map(f => `${getAirlineName(f)} ${getDepTime(f)}`).sort();
-        console.log(`[PRE-MERGE ${orig}→${dest}] direct=${(data.directFlights||[]).length} airlines=${JSON.stringify(byAl)} deps=[${deps.join(",")}]`);
+        (data.directFlights||[]).forEach(f => { const a=getAirlineName(f)||"?"; byAl[a]=(byAl[a]||0)+1; });
+        const deps = (data.directFlights||[]).map(f=>`${getAirlineName(f)} ${getDepTime(f)}`).sort();
+        console.log(`[OW ${orig}→${dest}] direct=${(data.directFlights||[]).length} airlines=${JSON.stringify(byAl)} deps=[${deps.join(",")}]`);
         return { data, apt };
       } catch(e) {
-        console.log(`[${orig}→${dest}] error:`, e.message);
-        return { data: { directFlights: [], milesGroups: [] }, apt };
+        console.log(`[OW ${orig}→${dest}] error:`, e.message);
+        return { data:{ directFlights:[], milesGroups:[] }, apt };
       }
     }));
 
-    // Merge direct flights, tag with airport, deduplicate by signature
     const seenSigs = new Set();
     const tagged = [];
     for (const { data, apt } of apiResults) {
@@ -350,40 +469,25 @@ async function searchFlights(monStr, missingLegs) {
         if (!seenSigs.has(sig)) { seenSigs.add(sig); tagged.push({ f, apt }); }
       }
     }
-    console.log(`[MERGED ${leg}] direct=${tagged.length}`);
+    console.log(`[OW MERGED ${leg}] direct=${tagged.length}`);
 
-    // Build cash options — min price across ALL pricingOptions (no cabin filter)
     const cashOpts = tagged.map(({ f, apt }) => ({
-      airline:   getAirlineName(f),
-      departure: getDepTime(f),
-      arrival:   getArrTime(f),
-      price:     Math.round(getPrice(f)),
-      airport:   apt,
+      airline:      getAirlineName(f),
+      departure:    getDepTime(f),
+      arrival:      getArrTime(f),
+      price:        Math.round(getPrice(f)),
+      airport:      apt,
       payment_type: "cash",
     })).filter(o => o.price > 0);
     cashOpts.sort((a, b) => a.price - b.price);
 
-    // Merge miles from both airports
-    const allMiles = apiResults.flatMap(r => r.data.milesGroups || []);
-    const ptsOpts = allMiles.map(m => ({
-      airline:       AIRLINE_MAP[m.airline] || m.airline || "",
-      departure:     m.departure || "",
-      arrival:       m.arrival   || "",
-      points:        m.pointsRequired || 0,
-      program:       progLabel((m.pointsType || m.providerId || "").toLowerCase()),
-      taxas:         Math.round(m.taxAmount || 0),
-      cashEquivalent: m.cashEquivalent || Math.round((m.pointsRequired || 0) * POINTS_RATE + (m.taxAmount || 0)),
-      payment_type: "points",
-    })).filter(o => o.points > 0);
-    ptsOpts.sort((a, b) => a.cashEquivalent - b.cashEquivalent);
-
-    return { leg, date, cashOpts, ptsOpts };
+    return { leg, date, cashOpts, ptsOpts: buildPtsOpts(apiResults.flatMap(r => r.data.milesGroups || [])) };
   }));
 
-  const totalDirect = legResults.reduce((s, r) => s + r.cashOpts.length, 0);
+  const total = legResults.reduce((s, r) => s + r.cashOpts.length, 0);
   return {
     results: legResults,
-    summary: totalDirect + " voos diretos encontrados · " + new Date().toLocaleTimeString("pt-BR"),
+    summary: total + " voos diretos encontrados · " + new Date().toLocaleTimeString("pt-BR"),
   };
 }
 
@@ -602,10 +706,12 @@ function cashCardHTML(opt, isBest, key, monStr, leg) {
     : opt.airport === "GIG"
     ? `<span class="option-badge" style="background:#37415133;color:#9ca3af;border:1px solid #37415155">GIG — Galeão</span>`
     : "";
+  const isRT = opt.note === "ida+volta";
   const topBadge = isBest ? `<div class="option-rec" style="color:#4CAF50">⭐ MAIS BARATO</div>` : "";
+  const rtNote = isRT ? `<div style="font-size:11px;color:#f59e0b;margin-top:2px">ida+volta · total R$ ${(opt.roundTripTotal||0).toLocaleString("pt-BR")}</div>` : "";
   const bg = isBest ? "#0f2a0f" : "#1A2E1A";
 
-  const d = JSON.stringify({ airline:opt.airline, departure:opt.departure, arrival:opt.arrival, price:opt.price, airport:opt.airport, payment_type:"cash" });
+  const d = JSON.stringify({ airline:opt.airline, departure:opt.departure, arrival:opt.arrival, price:opt.price, airport:opt.airport, payment_type:"cash", note:opt.note||"", roundTripTotal:opt.roundTripTotal||0 });
   const approveBtn = !state.approved[key]
     ? `<button class="btn btn-green" onclick='approveOpt(${JSON.stringify(d)}, "${monStr}", "${leg}")'>✅ Aprovar</button>`
     : "";
@@ -619,10 +725,12 @@ function cashCardHTML(opt, isBest, key, monStr, leg) {
           ${aptBadge}
           <span style="font-size:13px;color:#9ca3af">${opt.departure}${opt.arrival?" → "+opt.arrival:""}</span>
         </div>
+        ${rtNote}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
         <div class="option-price">
           <div class="price-main" style="color:#C8B450">R$ ${(opt.price||0).toLocaleString("pt-BR")}</div>
+          ${isRT?`<div style="font-size:10px;color:#7a9a7a">por trecho</div>`:""}
         </div>
         ${approveBtn}
       </div>
