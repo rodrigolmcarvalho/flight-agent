@@ -81,7 +81,8 @@ app.post("/api/search", async (req, res) => {
               if (flightGroups.length === groups.length && groups.length > 0) {
                 console.log("==> First flight-update keys:", Object.keys(data));
                 console.log("==> First group keys:", Object.keys(groups[0]));
-                console.log("==> First pricingOptions raw:", JSON.stringify(groups[0].pricingOptions || groups[0].offers || []).slice(0, 800));
+                console.log("==> First pricingOptions raw:", JSON.stringify(groups[0].pricingOptions || []));
+              console.log("==> First offers raw:", JSON.stringify(groups[0].offers || []));
               }
               console.log("==> Flight update, total:", flightGroups.length);
             } else if (currentEvent === "search-complete") {
@@ -104,6 +105,22 @@ app.post("/api/search", async (req, res) => {
     for (const f of flightGroups) {
       const sig = f.signature || f.humanSignature || f.flightSignature || JSON.stringify(f).slice(0, 80);
       if (!seen.has(sig)) { seen.add(sig); unique.push(f); }
+    }
+
+    // Debug: log full pricing for the first SDU/GIG departure flight to diagnose price issues
+    const firstRioDepFlight = unique.find(f => {
+      const segs = getSegments(f);
+      return segs.length > 0 && segs[0].departure &&
+        (segs[0].departure.airport === "SDU" || segs[0].departure.airport === "GIG");
+    });
+    if (firstRioDepFlight) {
+      const segs = getSegments(firstRioDepFlight);
+      const info = `${segs[0].marketingCarrier&&segs[0].marketingCarrier.code} ${segs[0].departure&&segs[0].departure.airport}`;
+      console.log("==> Return/GIG dep flight:", info);
+      console.log("==> pricingOptions:", JSON.stringify(firstRioDepFlight.pricingOptions || []));
+      console.log("==> offers:", JSON.stringify(firstRioDepFlight.offers || []));
+      console.log("==> top-level price/total:", firstRioDepFlight.price, firstRioDepFlight.total);
+      console.log("==> getPricing count:", getPricing(firstRioDepFlight).length, "computed getPrice:", getPrice(firstRioDepFlight));
     }
 
     // Sort by price
@@ -231,9 +248,10 @@ function getAirline(f) {
 }
 
 function getPricing(f) {
-  if (f.pricingOptions && f.pricingOptions.length) return f.pricingOptions;
-  if (f.offers && f.offers.length) return f.offers;
-  return [];
+  const opts = [];
+  if (f.pricingOptions && f.pricingOptions.length) opts.push(...f.pricingOptions);
+  if (f.offers && f.offers.length) opts.push(...f.offers);
+  return opts;
 }
 
 function extractPrice(offer) {

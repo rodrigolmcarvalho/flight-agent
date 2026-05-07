@@ -176,6 +176,7 @@ let state = {
   confirmed: {},
   selWeek: null,
   showManual: false,
+  expanded: {},
   manualForm: { week:"", leg:"mon", airline:"Azul", route:"CNF→SDU", departure:"", code:"", paymentType:"cash", price:"", points:"" },
 };
 
@@ -278,9 +279,10 @@ function getArrTime(f) {
 }
 
 function getPricing(f) {
-  if (f.pricingOptions && f.pricingOptions.length) return f.pricingOptions;
-  if (f.offers && f.offers.length) return f.offers;
-  return [];
+  const opts = [];
+  if (f.pricingOptions && f.pricingOptions.length) opts.push(...f.pricingOptions);
+  if (f.offers && f.offers.length) opts.push(...f.offers);
+  return opts;
 }
 function extractPrice(offer) {
   const pr = offer.price;
@@ -340,15 +342,13 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     };
   };
 
-  for (const f of (data.directFlights || [])) {
-    cashOpts.push(buildOpt(f, "direto"));
-  }
-  if (cashOpts.length === 0) {
-    for (const f of (data.flightGroups || [])) {
-      const nsegs = getSegs(f).length;
-      cashOpts.push(buildOpt(f, nsegs > 1 ? "com escala" : "direto"));
-      if (cashOpts.length >= 10) break;
-    }
+  // Use all flightGroups (includes direct + connecting); fall back to directFlights if empty
+  const allFlights = (data.flightGroups && data.flightGroups.length > 0)
+    ? data.flightGroups
+    : (data.directFlights || []);
+  for (const f of allFlights) {
+    const nsegs = getSegs(f).length;
+    cashOpts.push(buildOpt(f, nsegs === 1 ? "direto" : "com escala"));
   }
   cashOpts.sort((a,b) => a.price - b.price);
 
@@ -375,12 +375,13 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   }
   ptsOpts.sort((a,b) => (a.points_value_brl+a.taxas)-(b.points_value_brl+b.taxas));
 
-  const allOpts = cashOpts.slice(0,6).concat(ptsOpts.slice(0,2));
   const cheapCash = cashOpts[0] ? cashOpts[0].price : null;
   const cheapPts = ptsOpts[0] ? (ptsOpts[0].points_value_brl+ptsOpts[0].taxas) : null;
   const bestDeal = (cheapPts !== null && cheapCash !== null && cheapPts < cheapCash) ? "points" : "cash";
   const savings = cheapPts !== null && cheapCash !== null ? Math.abs(cheapCash-cheapPts) : 0;
-  return { leg, route:origin+"→"+dest, best_deal:bestDeal, best_deal_reason:bestDeal==="points"?"Pontos equivalem R$"+cheapPts+" vs R$"+cheapCash+" — economiza R$"+savings:(cheapCash?"Direto R$"+cheapCash+(cheapPts?" · Pontos R$"+cheapPts:""):"Sem voos no horario"), recommended:0, options:allOpts };
+  return { leg, route:origin+"→"+dest, best_deal:bestDeal,
+    best_deal_reason:bestDeal==="points"?"Pontos equivalem R$"+cheapPts+" vs R$"+cheapCash+" — economiza R$"+savings:(cheapCash?"Mais barato R$"+cheapCash+(cheapPts?" · Pontos R$"+cheapPts:""):"Sem voos no horario"),
+    recommended:0, cashOptions:cashOpts, ptsOptions:ptsOpts, options:cashOpts.concat(ptsOpts) };
 }
 
 async function searchFlights(monStr, missingLegs) {
@@ -578,14 +579,19 @@ function renderResultPanel(monStr, result) {
 
   let html = result.summary ? `<div style="background:#0f2a0f;border:1px solid #1e3a8a;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd">🤖 ${result.summary}</div>` : "";
 
+  const TOP = 3;
   for (const leg of result.results) {
     const dateStr = leg.leg==="mon" ? monStr : addDays(monStr,1);
     const key = monStr+"-"+leg.leg;
     const isApproved = !!state.approved[key];
     const apprOpt = state.approved[key];
-    const cashOpts = (leg.options||[]).filter(o => o.payment_type!=="points");
-    const ptsOpts = (leg.options||[]).filter(o => o.payment_type==="points");
-    const recIdx = leg.recommended||0;
+    const cashOpts = leg.cashOptions || (leg.options||[]).filter(o => o.payment_type!=="points");
+    const ptsOpts = leg.ptsOptions || (leg.options||[]).filter(o => o.payment_type==="points");
+
+    const cashExp = !!(state.expanded && state.expanded[key+"-cash"]);
+    const ptsExp  = !!(state.expanded && state.expanded[key+"-pts"]);
+    const topCash = cashExp ? cashOpts : cashOpts.slice(0, TOP);
+    const topPts  = ptsExp  ? ptsOpts  : ptsOpts.slice(0, TOP);
 
     const dealBadge = leg.best_deal ? `<div class="badge" style="background:${leg.best_deal==="points"?"#1e3a8a33":"#14532d33"};color:${leg.best_deal==="points"?"#90CAF9":"#A5D6A7"};border-color:${leg.best_deal==="points"?"#1e40af44":"#16653444"}">${leg.best_deal==="points"?"🔵 Pontos valem mais":"💰 Dinheiro melhor"}</div>` : "";
 
@@ -594,13 +600,18 @@ function renderResultPanel(monStr, result) {
       ${apprOpt.link?`<a href="${apprOpt.link}" target="_blank">${apprOpt.payment_type==="points"?"→ Resgatar":"→ Comprar"}</a>`:""}
     </div>` : "";
 
+    const cashExpandBtn = cashOpts.length > TOP ? `<button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="toggleExpand('${key}-cash')">${cashExp?"▲ Ver menos":"▼ Ver todos os "+cashOpts.length+" voos"}</button>` : "";
+    const ptsExpandBtn  = ptsOpts.length  > TOP ? `<button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="toggleExpand('${key}-pts')">${ptsExp?"▲ Ver menos":"▼ Ver todas as "+ptsOpts.length+" opções de pontos"}</button>` : "";
+
     const cashHTML = cashOpts.length > 0 ? `
       <div class="section-label">💰 Pagar em dinheiro</div>
-      ${cashOpts.map((opt,j) => optionCardHTML(opt, (!leg.best_deal||leg.best_deal==="cash")&&j===recIdx, isApproved, leg.route, monStr, leg.leg)).join("")}` : "";
+      ${topCash.map((opt,j) => optionCardHTML(opt, (!leg.best_deal||leg.best_deal==="cash")&&j===0, isApproved, leg.route, monStr, leg.leg)).join("")}
+      ${cashExpandBtn}` : "";
 
     const ptsHTML = ptsOpts.length > 0 ? `
       <div class="section-label" style="margin-top:10px">🔵 Resgatar pontos TudoAzul / Smiles</div>
-      ${ptsOpts.map((opt,j) => optionCardHTML(opt, leg.best_deal==="points"&&j===0, isApproved, leg.route, monStr, leg.leg)).join("")}` : "";
+      ${topPts.map((opt,j) => optionCardHTML(opt, leg.best_deal==="points"&&j===0, isApproved, leg.route, monStr, leg.leg)).join("")}
+      ${ptsExpandBtn}` : "";
 
     const emptyMsg = cashOpts.length===0&&ptsOpts.length===0 ? `<div style="color:#6b7280;font-size:13px">Nenhum voo encontrado no horario solicitado.</div>` : "";
 
@@ -755,6 +766,12 @@ async function doSearch(monStr) {
     state.searching = null;
     render();
   }
+}
+
+function toggleExpand(key) {
+  if (!state.expanded) state.expanded = {};
+  state.expanded[key] = !state.expanded[key];
+  render();
 }
 
 function viewResult(monStr) {
