@@ -107,20 +107,33 @@ app.post("/api/search", async (req, res) => {
       if (!seen.has(sig)) { seen.add(sig); unique.push(f); }
     }
 
-    // Debug: log full pricing for the first SDU/GIG departure flight to diagnose price issues
-    const firstRioDepFlight = unique.find(f => {
+    // Airline breakdown: total vs direct
+    const totalByAirline = {}, directByAirline = {};
+    for (const f of unique) {
+      const a = getAirline(f) || "?";
+      totalByAirline[a] = (totalByAirline[a]||0) + 1;
+      if (getSegments(f).length === 1) directByAirline[a] = (directByAirline[a]||0) + 1;
+    }
+    console.log("==> By airline total:", JSON.stringify(totalByAirline));
+    console.log("==> By airline direct:", JSON.stringify(directByAirline));
+
+    // Full price/structure debug for first 3 flights
+    for (const f of unique.slice(0, 3)) {
       const segs = getSegments(f);
-      return segs.length > 0 && segs[0].departure &&
-        (segs[0].departure.airport === "SDU" || segs[0].departure.airport === "GIG");
-    });
-    if (firstRioDepFlight) {
-      const segs = getSegments(firstRioDepFlight);
-      const info = `${segs[0].marketingCarrier&&segs[0].marketingCarrier.code} ${segs[0].departure&&segs[0].departure.airport}`;
-      console.log("==> Return/GIG dep flight:", info);
-      console.log("==> pricingOptions:", JSON.stringify(firstRioDepFlight.pricingOptions || []));
-      console.log("==> offers:", JSON.stringify(firstRioDepFlight.offers || []));
-      console.log("==> top-level price/total:", firstRioDepFlight.price, firstRioDepFlight.total);
-      console.log("==> getPricing count:", getPricing(firstRioDepFlight).length, "computed getPrice:", getPrice(firstRioDepFlight));
+      const a = getAirline(f);
+      const dep = segs[0] && segs[0].departure ? (segs[0].departure.airport||"") : "";
+      const arr = segs[segs.length-1] && segs[segs.length-1].arrival ? (segs[segs.length-1].arrival.airport||"") : "";
+      console.log(`==> [${a}] segs=${segs.length} ${dep}->${arr} computedPrice=${getPrice(f)}`);
+      console.log(`    keys:`, Object.keys(f).join(","));
+      console.log(`    pricingOptions:`, JSON.stringify(f.pricingOptions || []));
+      console.log(`    offers:`, JSON.stringify(f.offers || []));
+      console.log(`    f.price:`, f.price, `f.total:`, f.total, `f.amount:`, f.amount);
+    }
+
+    // Miles key discovery
+    if (unique.length > 0) {
+      const mileKeys = Object.keys(unique[0]).filter(k => /mile|point|reward|smiles|azul/i.test(k));
+      console.log("==> Miles-related top-level keys:", mileKeys.length ? mileKeys : "(none found)");
     }
 
     // Sort by price
@@ -160,8 +173,12 @@ app.post("/api/search", async (req, res) => {
       }
     }
     miles.sort((a, b) => a.totalCashEquivalent - b.totalCashEquivalent);
-
-    console.log("==> Direct:", direct.length, "Miles:", miles.length);
+    console.log("==> Direct:", direct.length, "Miles found:", miles.length);
+    if (miles.length === 0 && unique.length > 0) {
+      // Help debug why no miles: show raw pricing options for first flight
+      const samplePricing = getPricing(unique[0]);
+      console.log("==> No miles found. Sample pricing[0]:", JSON.stringify(samplePricing[0] || {}));
+    }
     if (direct.length > 0) {
       console.log("==> First direct dep:", getDepTime(direct[0]), "airline:", getAirline(direct[0]));
     }
@@ -198,6 +215,11 @@ function getSegments(f) {
   if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
     return f.flightInfo.itineraries[0].segments || [];
   if (f.slices && f.slices[0]) return f.slices[0].segments || [];
+  if (Array.isArray(f.segments) && f.segments.length > 0) return f.segments;
+  if (Array.isArray(f.itineraries) && f.itineraries[0])
+    return f.itineraries[0].segments || [];
+  if (Array.isArray(f.legs) && f.legs[0])
+    return f.legs[0].segments || f.legs || [];
   return [];
 }
 

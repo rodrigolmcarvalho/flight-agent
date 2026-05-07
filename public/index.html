@@ -249,6 +249,11 @@ function getSegs(f) {
   if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
     return f.flightInfo.itineraries[0].segments || [];
   if (f.slices && f.slices[0]) return f.slices[0].segments || [];
+  if (Array.isArray(f.segments) && f.segments.length > 0) return f.segments;
+  if (Array.isArray(f.itineraries) && f.itineraries[0])
+    return f.itineraries[0].segments || [];
+  if (Array.isArray(f.legs) && f.legs[0])
+    return f.legs[0].segments || f.legs || [];
   return [];
 }
 function getDepTime(f) {
@@ -306,11 +311,7 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
   const cashOpts = [];
   const ptsOpts = [];
 
-  console.log("[DEBUG] leg:", leg, "direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length);
-  if ((data.directFlights||[]).length > 0) {
-    const f0 = data.directFlights[0];
-    console.log("[DEBUG] first direct pricingOptions raw:", JSON.stringify(f0.pricingOptions || f0.offers || []).slice(0, 400));
-  }
+  console.log("[DEBUG] normaliseSyncResponse leg:", leg, "direct:", (data.directFlights||[]).length, "miles:", (data.milesGroups||[]).length);
 
   const buildOpt = (f, note) => {
     // Detect the actual Rio airport (GIG or SDU) from segment arrival/departure
@@ -342,13 +343,9 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     };
   };
 
-  // Use all flightGroups (includes direct + connecting); fall back to directFlights if empty
-  const allFlights = (data.flightGroups && data.flightGroups.length > 0)
-    ? data.flightGroups
-    : (data.directFlights || []);
-  for (const f of allFlights) {
-    const nsegs = getSegs(f).length;
-    cashOpts.push(buildOpt(f, nsegs === 1 ? "direto" : "com escala"));
+  // Only show direct (nonstop) flights
+  for (const f of (data.directFlights || [])) {
+    cashOpts.push(buildOpt(f, "direto"));
   }
   cashOpts.sort((a,b) => a.price - b.price);
 
@@ -401,7 +398,22 @@ async function searchFlights(monStr, missingLegs) {
         console.log("[DEBUG] fetch "+orig+"→"+dest+" status:", res.status);
         if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
         const data = await res.json();
-        console.log("[DEBUG] "+orig+"→"+dest+" direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length, "miles:", (data.milesGroups||[]).length);
+        const nDirect = (data.directFlights||[]).length;
+        const nAll = (data.flightGroups||[]).length;
+        const nMiles = (data.milesGroups||[]).length;
+        console.log(`[DEBUG] ${orig}→${dest}: direct=${nDirect} all=${nAll} miles=${nMiles}`);
+        // Log airlines found in directFlights
+        const airlines = [...new Set((data.directFlights||[]).map(f => getAirlineFromFlight(f)))];
+        console.log(`[DEBUG] ${orig}→${dest} airlines in directFlights:`, airlines);
+        // Log raw price structure of first direct flight
+        if (nDirect > 0) {
+          const f0 = data.directFlights[0];
+          console.log(`[DEBUG] ${orig}→${dest} first direct pricing:`, JSON.stringify({
+            pricingOptions: f0.pricingOptions || [],
+            offers: f0.offers || [],
+            price: f0.price, total: f0.total, amount: f0.amount
+          }));
+        }
         return data;
       } catch(e) {
         console.log("[DEBUG] search error "+orig+"→"+dest+":", e.message);
