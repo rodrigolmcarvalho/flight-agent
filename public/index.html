@@ -382,9 +382,28 @@ async function doRoundTripSearch(monStr, tue) {
       if (seenSigs.has(sig)) continue;
       seenSigs.add(sig);
 
-      const fullPrice = Math.round(getPrice(f));
-      if (!fullPrice) continue;
-      const perLeg = Math.round(fullPrice / 2);
+      // Find cheapest offer and use outboundTotal/inboundTotal for accurate per-leg pricing
+      let outPrice = 0, inPrice = 0, rtTotal = 0;
+      for (const p of getPricing(f)) {
+        const pr = p.price && typeof p.price === "object" ? p.price : {};
+        const out = Number(pr.outboundTotal) || 0;
+        const inp = Number(pr.inboundTotal)  || 0;
+        const tot = Number(pr.total) || 0;
+        if (out > 0 && (!outPrice || tot < rtTotal)) {
+          outPrice = out; inPrice = inp; rtTotal = tot;
+        }
+      }
+      if (!outPrice) {
+        const full = Math.round(getPrice(f));
+        if (!full) continue;
+        outPrice = Math.round(full / 2);
+        inPrice  = outPrice;
+        rtTotal  = full;
+      }
+      outPrice = Math.round(outPrice);
+      inPrice  = Math.round(inPrice);
+      rtTotal  = Math.round(rtTotal);
+      if (!outPrice) continue;
       const airline = getAirlineName(f);
 
       const outSegs = getSegs(f);
@@ -393,7 +412,7 @@ async function doRoundTripSearch(monStr, tue) {
           airline, airport: apt, payment_type: "cash",
           departure: segTime(outSegs[0], "departure"),
           arrival:   segTime(outSegs[0], "arrival"),
-          price: perLeg, note: "ida+volta", roundTripTotal: fullPrice,
+          price: outPrice, note: "ida+volta", roundTripTotal: rtTotal,
         });
       }
 
@@ -403,7 +422,7 @@ async function doRoundTripSearch(monStr, tue) {
           airline, airport: apt, payment_type: "cash",
           departure: segTime(retSegs[0], "departure"),
           arrival:   segTime(retSegs[0], "arrival"),
-          price: perLeg, note: "ida+volta", roundTripTotal: fullPrice,
+          price: inPrice, note: "ida+volta", roundTripTotal: rtTotal,
         });
       }
     }
