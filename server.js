@@ -120,16 +120,17 @@ app.post("/api/search", async (req, res) => {
     direct.sort((a, b) => getPrice(a) - getPrice(b));
     console.log("==> Direct:", direct.length);
 
-    // Log every pricingOption for first Azul and first Gol direct flight
-    for (const airline of ["Azul", "Gol"]) {
-      const fl = direct.find(f => getAirline(f) === airline);
-      if (!fl) { console.log(`==> ${airline}: no direct found`); continue; }
-      const opts = getPricing(fl);
-      console.log(`==> ${airline} dep=${getDepTime(fl)} opts=${opts.length} computedMin=${getPrice(fl)}`);
-      opts.forEach((p, i) => {
+    // Log ALL Azul direct flights: every pricingOption's numeric price fields
+    const azulDirect = direct.filter(f => getAirline(f) === "Azul");
+    console.log(`==> Azul direct: ${azulDirect.length}`);
+    for (const f of azulDirect) {
+      const opts = getPricing(f);
+      console.log(`  dep=${getDepTime(f)} opts=${opts.length} computedMin=${getPrice(f)}`);
+      for (const [i, p] of opts.entries()) {
         const pr = p.price && typeof p.price === "object" ? p.price : {};
-        console.log(`    [${i}] providerId=${p.providerId} baseFare=${pr.baseFare} total=${pr.total} adultPrice=${pr.adultPrice} extracted=${extractPrice(p)}`);
-      });
+        const nums = Object.fromEntries(Object.entries(pr).filter(([,v]) => typeof v === "number" && v > 0));
+        console.log(`    [${i}] providerId=${p.providerId} priceNums=${JSON.stringify(nums)} extracted=${extractPrice(p)}`);
+      }
     }
 
     // Miles from all flights
@@ -213,17 +214,27 @@ function getPricing(f) {
   return opts;
 }
 
+const PRICE_KEYS = ["baseFare","adultPrice","companyPrice","fare","amount","totalFare","total","grandTotal","totalAmount"];
+const OFFER_KEYS = ["totalPrice","total","totalAmount","amount","grandTotal","fare"];
+
 function extractPrice(offer) {
   const pr = offer.price;
+  const candidates = [];
   if (pr && typeof pr === "object") {
-    // baseFare is always the real ticket cost — for Livelo price.total adds a ~R$3100
-    // platform fee on top, so we must prefer baseFare regardless of providerId.
-    return pr.baseFare || pr.adultPrice || pr.companyPrice ||
-           pr.total || pr.grandTotal || pr.amount || pr.totalAmount || pr.fare || pr.totalFare || 0;
+    for (const k of PRICE_KEYS) {
+      const v = Number(pr[k]);
+      if (v > 50) candidates.push(v);   // >50 excludes rates/flags; domestic fares start ~R$150
+    }
+  } else if (typeof pr === "number" && pr > 50) {
+    candidates.push(pr);
   }
-  if (typeof pr === "number" && pr > 0) return pr;
-  return offer.totalPrice || offer.total || offer.totalAmount ||
-         offer.amount || offer.grandTotal || offer.fare || 0;
+  if (!candidates.length) {
+    for (const k of OFFER_KEYS) {
+      const v = Number(offer[k]);
+      if (v > 50) candidates.push(v);
+    }
+  }
+  return candidates.length ? Math.min(...candidates) : 0;
 }
 
 function getPrice(f) {

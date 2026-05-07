@@ -272,14 +272,20 @@ function getPricing(f) {
   return opts;
 }
 function extractPrice(offer) {
+  const PRICE_KEYS = ["baseFare","adultPrice","companyPrice","fare","amount","totalFare","total","grandTotal","totalAmount"];
   const pr = offer.price;
+  const candidates = [];
   if (pr && typeof pr === "object") {
-    return pr.baseFare || pr.adultPrice || pr.companyPrice ||
-           pr.total || pr.grandTotal || pr.amount || pr.totalAmount || pr.fare || pr.totalFare || 0;
+    for (const k of PRICE_KEYS) { const v = Number(pr[k]); if (v > 50) candidates.push(v); }
+  } else if (typeof pr === "number" && pr > 50) {
+    candidates.push(pr);
   }
-  if (typeof pr === "number" && pr > 0) return pr;
-  return offer.totalPrice || offer.total || offer.totalAmount ||
-         offer.amount || offer.grandTotal || offer.fare || 0;
+  if (!candidates.length) {
+    for (const k of ["totalPrice","total","totalAmount","amount","grandTotal","fare"]) {
+      const v = Number(offer[k]); if (v > 50) candidates.push(v);
+    }
+  }
+  return candidates.length ? Math.min(...candidates) : 0;
 }
 function getPrice(f) {
   const all = getPricing(f);
