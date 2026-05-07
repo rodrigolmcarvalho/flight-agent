@@ -120,6 +120,15 @@ app.post("/api/search", async (req, res) => {
     direct.sort((a, b) => getPrice(a) - getPrice(b));
     console.log("==> Direct:", direct.length);
 
+    // Log first Gol direct pricingOptions so we can verify the R$2159 price
+    const golDirect = direct.find(f => getAirline(f) === "Gol");
+    if (golDirect) {
+      console.log("==> Gol direct computedPrice:", getPrice(golDirect));
+      console.log("==> Gol direct pricingOptions RAW:", JSON.stringify(getPricing(golDirect)));
+    } else {
+      console.log("==> No Gol direct flight found in this search");
+    }
+
     // Miles from all flights
     const miles = [];
     for (const f of unique) {
@@ -131,9 +140,11 @@ app.post("/api/search", async (req, res) => {
         if (!pts) continue;
         const prog = (info.pointsType || info.program ||
           p.providerId || p.program || p.pointsType || "").toLowerCase();
+        // Domestic airport taxes are at most ~R$150. Any individual item > R$200
+        // is a platform fee (e.g. Livelo BOARDING ~R$3100) — exclude it.
         const taxAmt = Array.isArray(priceObj.taxes)
-          ? priceObj.taxes.reduce((s, t) => s + (t.amount || 0), 0)
-          : (typeof p.taxes === "object" && p.taxes ? (p.taxes.amount || 0) : (p.taxes || p.taxAmount || 0));
+          ? priceObj.taxes.filter(t => (t.amount || 0) <= 200).reduce((s, t) => s + (t.amount || 0), 0)
+          : Math.min(typeof p.taxes === "object" && p.taxes ? (p.taxes.amount || 0) : (p.taxes || p.taxAmount || 0), 200);
         const segs = getSegments(f);
         const dep = segs.length > 0 && segs[0].departure ? (segs[0].departure.time || "") : "";
         const lastSeg = segs[segs.length - 1];

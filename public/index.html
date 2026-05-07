@@ -325,7 +325,11 @@ async function searchFlights(monStr, missingLegs) {
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-        console.log(`[${orig}→${dest}] direct=${(data.directFlights||[]).length} miles=${(data.milesGroups||[]).length}`);
+        // Per-airport breakdown BEFORE merge
+        const byAl = {};
+        (data.directFlights||[]).forEach(f => { const a = getAirlineName(f)||"?"; byAl[a]=(byAl[a]||0)+1; });
+        const deps = (data.directFlights||[]).map(f => `${getAirlineName(f)} ${getDepTime(f)}`).sort();
+        console.log(`[PRE-MERGE ${orig}→${dest}] direct=${(data.directFlights||[]).length} airlines=${JSON.stringify(byAl)} deps=[${deps.join(",")}]`);
         return { data, apt };
       } catch(e) {
         console.log(`[${orig}→${dest}] error:`, e.message);
@@ -590,7 +594,7 @@ function renderResultPanel(monStr, result) {
 
 function cashCardHTML(opt, isBest, key, monStr, leg) {
   const aptBadge = opt.airport === "SDU"
-    ? `<span class="option-badge" style="background:#14532d44;color:#86efac;border:1px solid #16653444">★ SDU preferido</span>`
+    ? `<span class="option-badge" style="background:#14532d44;color:#86efac;border:1px solid #16653444">★ SDU — preferido</span>`
     : opt.airport === "GIG"
     ? `<span class="option-badge" style="background:#37415133;color:#9ca3af;border:1px solid #37415155">GIG — Galeão</span>`
     : "";
