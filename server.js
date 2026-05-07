@@ -124,26 +124,26 @@ app.post("/api/search", async (req, res) => {
     console.log("==> By airline total:", JSON.stringify(totalByAirline));
     console.log("==> By airline direct:", JSON.stringify(directByAirline));
 
-    // Per-airline price debug: every pricingOption for first Gol and Azul flight
+    // Full raw pricingOptions dump for first Gol and Azul flight
     const golFlight  = unique.find(f => getAirline(f) === "Gol");
     const azulFlight = unique.find(f => getAirline(f) === "Azul");
     for (const [name, fl] of [["Gol", golFlight], ["Azul", azulFlight]]) {
       if (!fl) { console.log(`==> ${name}: not found in results`); continue; }
       const pricing = getPricing(fl);
       console.log(`==> ${name}: segs=${getSegments(fl).length} pricingOpts=${pricing.length} computedPrice=${getPrice(fl)}`);
-      console.log(`    top-level: price=${fl.price} total=${fl.total} amount=${fl.amount} lowestFare=${fl.lowestFare}`);
-      for (let i = 0; i < pricing.length; i++) {
-        const opt = pricing[i];
-        const pr = opt.price;
-        const prStr = (pr && typeof pr === "object")
-          ? `{total:${pr.total},baseFare:${pr.baseFare},grandTotal:${pr.grandTotal},amount:${pr.amount},fare:${pr.fare},totalAmount:${pr.totalAmount}}`
-          : `(${typeof pr}: ${pr})`;
-        console.log(`    opt[${i}] extractPrice=${extractPrice(opt)} price=${prStr} opt.total=${opt.total} opt.amount=${opt.amount} opt.fare=${opt.fare} providerId=${opt.providerId}`);
-      }
-      // Miles-related keys on this flight
+      // Log complete raw pricingOptions so cabin class / fare type fields are visible
+      console.log(`==> ${name} pricingOptions RAW:`, JSON.stringify(fl.pricingOptions || []));
+      console.log(`==> ${name} offers RAW:`, JSON.stringify(fl.offers || []));
       const mileKeys = Object.keys(fl).filter(k => /mile|point|reward|smiles|azul|loyalty/i.test(k));
       console.log(`    miles-related keys: ${mileKeys.length ? mileKeys.join(",") : "(none)"}`);
     }
+
+    // Azul departure times — check if early morning flights are in API response
+    const azulDeps = unique
+      .filter(f => getAirline(f) === "Azul" && getSegments(f).length === 1)
+      .map(f => getDepTime(f))
+      .sort();
+    console.log("==> Azul direct departure times:", azulDeps.length ? azulDeps : "(none)");
 
     // Sort by price
     unique.sort((a, b) => getPrice(a) - getPrice(b));
@@ -291,6 +291,17 @@ function getPricing(f) {
   return opts;
 }
 
+// Returns false only if the option is explicitly non-economy (business/first/premium).
+// Unknown cabin class → included (conservative — don't over-filter).
+function isEconomyOpt(opt) {
+  const NON_ECO = /business|executiv|first|premium|suite/i;
+  for (const key of ["cabinClass","cabin","fareClass","class","fareType","service","cabinType","productClass","fareFamily"]) {
+    const v = opt[key];
+    if (v && NON_ECO.test(String(v))) return false;
+  }
+  return true;
+}
+
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
@@ -303,9 +314,11 @@ function extractPrice(offer) {
 }
 
 function getPrice(f) {
-  const p = getPricing(f);
-  if (p.length > 0) {
-    const prices = p.map(extractPrice).filter(x => x > 0);
+  const all = getPricing(f);
+  if (all.length > 0) {
+    const eco = all.filter(isEconomyOpt);
+    const pool = eco.length > 0 ? eco : all; // fallback: use all if nothing passes economy filter
+    const prices = pool.map(extractPrice).filter(x => x > 0);
     return prices.length > 0 ? Math.min(...prices) : 0;
   }
   return f.price || f.total || f.totalPrice || f.amount || 0;

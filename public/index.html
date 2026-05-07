@@ -289,16 +289,31 @@ function getPricing(f) {
   if (f.offers && f.offers.length) opts.push(...f.offers);
   return opts;
 }
+function isEconomyOpt(opt) {
+  const NON_ECO = /business|executiv|first|premium|suite/i;
+  for (const key of ["cabinClass","cabin","fareClass","class","fareType","service","cabinType","productClass","fareFamily"]) {
+    const v = opt[key];
+    if (v && NON_ECO.test(String(v))) return false;
+  }
+  return true;
+}
 function extractPrice(offer) {
   const pr = offer.price;
-  if (pr && typeof pr === "object") return pr.total || pr.baseFare || pr.grandTotal || 0;
-  return offer.totalPrice || offer.total || (typeof pr === "number" ? pr : 0) || offer.amount || offer.grandTotal || offer.fare || 0;
+  if (pr && typeof pr === "object") {
+    return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
+           pr.totalAmount || pr.fare || pr.totalFare || 0;
+  }
+  if (typeof pr === "number" && pr > 0) return pr;
+  return offer.totalPrice || offer.total || offer.totalAmount ||
+         offer.amount || offer.grandTotal || offer.fare || 0;
 }
 function getPrice(f) {
-  const pricing = getPricing(f);
+  const all = getPricing(f);
   let p = 0;
-  if (pricing.length > 0) {
-    const prices = pricing.map(extractPrice).filter(x => x > 0);
+  if (all.length > 0) {
+    const eco = all.filter(isEconomyOpt);
+    const pool = eco.length > 0 ? eco : all;
+    const prices = pool.map(extractPrice).filter(x => x > 0);
     p = prices.length > 0 ? Math.min(...prices) : 0;
   }
   if (!p) p = f.price || f.total || f.totalPrice || f.amount || 0;
@@ -402,18 +417,11 @@ async function searchFlights(monStr, missingLegs) {
         const nAll = (data.flightGroups||[]).length;
         const nMiles = (data.milesGroups||[]).length;
         console.log(`[DEBUG] ${orig}→${dest}: direct=${nDirect} all=${nAll} miles=${nMiles}`);
-        // Log airlines found in directFlights
+        // Log airlines + departure times found in directFlights
         const airlines = [...new Set((data.directFlights||[]).map(f => getAirlineFromFlight(f)))];
         console.log(`[DEBUG] ${orig}→${dest} airlines in directFlights:`, airlines);
-        // Log raw price structure of first direct flight
-        if (nDirect > 0) {
-          const f0 = data.directFlights[0];
-          console.log(`[DEBUG] ${orig}→${dest} first direct pricing:`, JSON.stringify({
-            pricingOptions: f0.pricingOptions || [],
-            offers: f0.offers || [],
-            price: f0.price, total: f0.total, amount: f0.amount
-          }));
-        }
+        const depTimes = (data.directFlights||[]).map(f => `${getAirlineFromFlight(f)} ${getDepTime(f)}`).sort();
+        console.log(`[DEBUG] ${orig}→${dest} direct departures:`, depTimes);
         return data;
       } catch(e) {
         console.log("[DEBUG] search error "+orig+"→"+dest+":", e.message);
