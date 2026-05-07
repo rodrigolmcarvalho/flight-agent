@@ -247,6 +247,9 @@ function extractPrice(offer) {
 
 function getPrice(f) {
   const p = getPricing(f);
-  if (p.length > 0) return extractPrice(p[0]);
+  if (p.length > 0) {
+    const prices = p.map(extractPrice).filter(x => x > 0);
+    return prices.length > 0 ? Math.min(...prices) : 0;
+  }
   return f.price || f.total || f.totalPrice || f.amount || 0;
 }

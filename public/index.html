@@ -289,7 +289,11 @@ function extractPrice(offer) {
 }
 function getPrice(f) {
   const pricing = getPricing(f);
-  let p = pricing.length > 0 ? extractPrice(pricing[0]) : 0;
+  let p = 0;
+  if (pricing.length > 0) {
+    const prices = pricing.map(extractPrice).filter(x => x > 0);
+    p = prices.length > 0 ? Math.min(...prices) : 0;
+  }
   if (!p) p = f.price || f.total || f.totalPrice || f.amount || 0;
   if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(/\./g,"").replace(",",".")) || 0;
   return Math.round(p);
@@ -385,27 +389,36 @@ async function searchFlights(monStr, missingLegs) {
   const legResults = await Promise.all(missingLegs.map(async leg => {
     const isMonday = leg === "mon";
     const date = isMonday ? monStr : tue;
-    // Use "RIO" city code — API returns both SDU and GIG results in one call
+
+    // Search SDU and GIG separately in parallel so neither airport is missed
+    const apiResults = await Promise.all(["SDU", "GIG"].map(async apt => {
+      const orig = isMonday ? "CNF" : apt;
+      const dest = isMonday ? apt : "CNF";
+      try {
+        const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
+        const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+        console.log("[DEBUG] fetch "+orig+"→"+dest+" status:", res.status);
+        if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
+        const data = await res.json();
+        console.log("[DEBUG] "+orig+"→"+dest+" direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length, "miles:", (data.milesGroups||[]).length);
+        return data;
+      } catch(e) {
+        console.log("[DEBUG] search error "+orig+"→"+dest+":", e.message);
+        return {directFlights:[], flightGroups:[], milesGroups:[]};
+      }
+    }));
+
+    // Merge SDU and GIG results
+    const merged = {
+      directFlights: apiResults.flatMap(d => d.directFlights||[]),
+      flightGroups:  apiResults.flatMap(d => d.flightGroups||[]),
+      milesGroups:   apiResults.flatMap(d => d.milesGroups||[]),
+    };
+    console.log("[DEBUG] merged leg="+leg+" direct:", merged.directFlights.length, "all:", merged.flightGroups.length, "miles:", merged.milesGroups.length);
+
     const orig = isMonday ? "CNF" : "RIO";
     const dest = isMonday ? "RIO" : "CNF";
-
-    try {
-      const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
-      const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-      console.log("[DEBUG] fetch status:", res.status);
-      if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
-      const data = await res.json();
-      console.log("[DEBUG] "+orig+"→"+dest+" direct:", (data.directFlights||[]).length, "all:", (data.flightGroups||[]).length);
-      const tag = f => ({...f, _orig:orig, _dest:dest, _pref:true});
-      return normaliseSyncResponse({
-        directFlights: (data.directFlights||[]).map(tag),
-        flightGroups:  (data.flightGroups||[]).map(tag),
-        milesGroups:   data.milesGroups||[],
-      }, leg, orig, dest, date);
-    } catch(e) {
-      console.log("[DEBUG] search error:", e.message);
-      return normaliseSyncResponse({directFlights:[], flightGroups:[], milesGroups:[]}, leg, orig, dest, date);
-    }
+    return normaliseSyncResponse(merged, leg, orig, dest, date);
   }));
 
   const allResults = legResults.filter(Boolean);
