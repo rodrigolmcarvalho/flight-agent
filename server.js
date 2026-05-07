@@ -87,9 +87,16 @@ app.post("/api/search", async (req, res) => {
               console.log("==> Flight update, total:", flightGroups.length);
             } else if (currentEvent === "search-complete") {
               summary = data.summary || {};
+              console.log("==> search-complete keys:", Object.keys(data));
+              const scStr = JSON.stringify(data);
+              if (/mile|point|reward|smiles|azul/i.test(scStr)) {
+                console.log("==> search-complete miles/points data:", scStr.slice(0, 800));
+              }
               clearTimeout(timeout);
               done = true;
               break;
+            } else if (currentEvent) {
+              console.log("==> Unknown SSE event:", currentEvent, JSON.stringify(data).slice(0, 300));
             }
           } catch(e) {}
         }
@@ -117,23 +124,25 @@ app.post("/api/search", async (req, res) => {
     console.log("==> By airline total:", JSON.stringify(totalByAirline));
     console.log("==> By airline direct:", JSON.stringify(directByAirline));
 
-    // Full price/structure debug for first 3 flights
-    for (const f of unique.slice(0, 3)) {
-      const segs = getSegments(f);
-      const a = getAirline(f);
-      const dep = segs[0] && segs[0].departure ? (segs[0].departure.airport||"") : "";
-      const arr = segs[segs.length-1] && segs[segs.length-1].arrival ? (segs[segs.length-1].arrival.airport||"") : "";
-      console.log(`==> [${a}] segs=${segs.length} ${dep}->${arr} computedPrice=${getPrice(f)}`);
-      console.log(`    keys:`, Object.keys(f).join(","));
-      console.log(`    pricingOptions:`, JSON.stringify(f.pricingOptions || []));
-      console.log(`    offers:`, JSON.stringify(f.offers || []));
-      console.log(`    f.price:`, f.price, `f.total:`, f.total, `f.amount:`, f.amount);
-    }
-
-    // Miles key discovery
-    if (unique.length > 0) {
-      const mileKeys = Object.keys(unique[0]).filter(k => /mile|point|reward|smiles|azul/i.test(k));
-      console.log("==> Miles-related top-level keys:", mileKeys.length ? mileKeys : "(none found)");
+    // Per-airline price debug: every pricingOption for first Gol and Azul flight
+    const golFlight  = unique.find(f => getAirline(f) === "Gol");
+    const azulFlight = unique.find(f => getAirline(f) === "Azul");
+    for (const [name, fl] of [["Gol", golFlight], ["Azul", azulFlight]]) {
+      if (!fl) { console.log(`==> ${name}: not found in results`); continue; }
+      const pricing = getPricing(fl);
+      console.log(`==> ${name}: segs=${getSegments(fl).length} pricingOpts=${pricing.length} computedPrice=${getPrice(fl)}`);
+      console.log(`    top-level: price=${fl.price} total=${fl.total} amount=${fl.amount} lowestFare=${fl.lowestFare}`);
+      for (let i = 0; i < pricing.length; i++) {
+        const opt = pricing[i];
+        const pr = opt.price;
+        const prStr = (pr && typeof pr === "object")
+          ? `{total:${pr.total},baseFare:${pr.baseFare},grandTotal:${pr.grandTotal},amount:${pr.amount},fare:${pr.fare},totalAmount:${pr.totalAmount}}`
+          : `(${typeof pr}: ${pr})`;
+        console.log(`    opt[${i}] extractPrice=${extractPrice(opt)} price=${prStr} opt.total=${opt.total} opt.amount=${opt.amount} opt.fare=${opt.fare} providerId=${opt.providerId}`);
+      }
+      // Miles-related keys on this flight
+      const mileKeys = Object.keys(fl).filter(k => /mile|point|reward|smiles|azul|loyalty/i.test(k));
+      console.log(`    miles-related keys: ${mileKeys.length ? mileKeys.join(",") : "(none)"}`);
     }
 
     // Sort by price
@@ -175,9 +184,15 @@ app.post("/api/search", async (req, res) => {
     miles.sort((a, b) => a.totalCashEquivalent - b.totalCashEquivalent);
     console.log("==> Direct:", direct.length, "Miles found:", miles.length);
     if (miles.length === 0 && unique.length > 0) {
-      // Help debug why no miles: show raw pricing options for first flight
-      const samplePricing = getPricing(unique[0]);
-      console.log("==> No miles found. Sample pricing[0]:", JSON.stringify(samplePricing[0] || {}));
+      console.log("==> No miles found. Checking first 2 pricing options for any points-like keys:");
+      for (const f of unique.slice(0, 2)) {
+        for (const p of getPricing(f).slice(0, 2)) {
+          const keys = Object.keys(p).join(",");
+          const prKeys = p.price && typeof p.price === "object" ? Object.keys(p.price).join(",") : "n/a";
+          console.log(`  pricing keys: [${keys}] price keys: [${prKeys}]`);
+          console.log(`  full opt:`, JSON.stringify(p));
+        }
+      }
     }
     if (direct.length > 0) {
       console.log("==> First direct dep:", getDepTime(direct[0]), "airline:", getAirline(direct[0]));
@@ -277,11 +292,13 @@ function getPricing(f) {
 }
 
 function extractPrice(offer) {
-  // Real API shape: offer.price is an object {total, baseFare, taxes:[]}
   const pr = offer.price;
-  if (pr && typeof pr === "object") return pr.total || pr.baseFare || pr.grandTotal || 0;
-  // Fallback: price as flat number on the offer itself
-  return offer.totalPrice || offer.total || (typeof pr === "number" ? pr : 0) ||
+  if (pr && typeof pr === "object") {
+    return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
+           pr.totalAmount || pr.fare || pr.totalFare || 0;
+  }
+  if (typeof pr === "number" && pr > 0) return pr;
+  return offer.totalPrice || offer.total || offer.totalAmount ||
          offer.amount || offer.grandTotal || offer.fare || 0;
 }
 

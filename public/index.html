@@ -367,7 +367,7 @@ function normaliseSyncResponse(data, leg, origin, dest, date) {
     const progKey = Object.keys(MILES_LINKS).find(k => prog.includes(k)) || "";
     const linkFn = MILES_LINKS[progKey];
     const link = linkFn ? linkFn(origin, dest, date) : gLink(origin, dest, date);
-    const label = prog.includes("smiles")?"Smiles":prog.includes("azul")?"TudoAzul":prog.includes("livelo")?"Livelo":prog;
+    const label = prog.includes("gol")?"Smiles":prog.includes("smiles")?"Smiles":prog.includes("azul")?"TudoAzul":prog.includes("tudo")?"TudoAzul":prog.includes("latam")?"LATAM Pass":prog.includes("livelo")?"Livelo":prog;
     ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link, note:label });
   }
   ptsOpts.sort((a,b) => (a.points_value_brl+a.taxas)-(b.points_value_brl+b.taxas));
@@ -393,7 +393,7 @@ async function searchFlights(monStr, missingLegs) {
       const orig = isMonday ? "CNF" : apt;
       const dest = isMonday ? apt : "CNF";
       try {
-        const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","smiles"]};
+        const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","azul","smiles","gol","livelo","latam"]};
         const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
         console.log("[DEBUG] fetch "+orig+"→"+dest+" status:", res.status);
         if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
