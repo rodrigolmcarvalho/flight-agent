@@ -149,8 +149,9 @@ app.post("/api/search", async (req, res) => {
       console.log(`  dep=${getDepTime(f)} opts=${opts.length} computedMin=${getPrice(f)}`);
       for (const [i, p] of opts.entries()) {
         const pr = p.price && typeof p.price === "object" ? p.price : {};
-        const nums = Object.fromEntries(Object.entries(pr).filter(([,v]) => typeof v === "number" && v > 0));
-        console.log(`    [${i}] providerId=${p.providerId} priceNums=${JSON.stringify(nums)} extracted=${extractPrice(p)}`);
+        const priceNums = Object.fromEntries(Object.entries(pr).filter(([,v]) => typeof v === "number" && v > 0));
+        const offerNums = Object.fromEntries(Object.entries(p).filter(([,v]) => typeof v === "number" && v > 0));
+        console.log(`    [${i}] providerId=${p.providerId} price.*=${JSON.stringify(priceNums)} offer.*=${JSON.stringify(offerNums)} extracted=${extractPrice(p)}`);
       }
     }
 
@@ -248,11 +249,11 @@ function getPricing(f) {
 }
 
 const PRICE_KEYS = ["baseFare","adultPrice","companyPrice","fare","amount","totalFare","total","grandTotal","totalAmount"];
-const OFFER_KEYS = ["totalPrice","total","totalAmount","amount","grandTotal","fare"];
 
 function extractPrice(offer) {
   const pr = offer.price;
   const candidates = [];
+  // Always check offer.price.* fields
   if (pr && typeof pr === "object") {
     for (const k of PRICE_KEYS) {
       const v = Number(pr[k]);
@@ -261,11 +262,10 @@ function extractPrice(offer) {
   } else if (typeof pr === "number" && pr > 50) {
     candidates.push(pr);
   }
-  if (!candidates.length) {
-    for (const k of OFFER_KEYS) {
-      const v = Number(offer[k]);
-      if (v > 50) candidates.push(v);
-    }
+  // Always also check top-level offer.* fields (baseFare may live here for round-trip)
+  for (const k of PRICE_KEYS) {
+    const v = Number(offer[k]);
+    if (v > 50) candidates.push(v);
   }
   return candidates.length ? Math.min(...candidates) : 0;
 }

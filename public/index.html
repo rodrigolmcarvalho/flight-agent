@@ -280,11 +280,8 @@ function extractPrice(offer) {
   } else if (typeof pr === "number" && pr > 50) {
     candidates.push(pr);
   }
-  if (!candidates.length) {
-    for (const k of ["totalPrice","total","totalAmount","amount","grandTotal","fare"]) {
-      const v = Number(offer[k]); if (v > 50) candidates.push(v);
-    }
-  }
+  // Always also check top-level offer.* fields (baseFare may live here for round-trip)
+  for (const k of PRICE_KEYS) { const v = Number(offer[k]); if (v > 50) candidates.push(v); }
   return candidates.length ? Math.min(...candidates) : 0;
 }
 function getPrice(f) {
