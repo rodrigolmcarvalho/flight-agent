@@ -45,9 +45,8 @@ a { color: #6b9ef4; }
 .search-select { background: #1e3a1e; color: #D4E8C2; border: 1px solid #2d502d; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
 
 .result-card { background: #1e3a1e; border: 1px solid #2d502d; border-radius: 10px; padding: 18px; margin-bottom: 12px; }
-.result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
 .result-label { font-size: 11px; color: #7a9a7a; letter-spacing: 2px; text-transform: uppercase; }
-.reason-box { font-size: 12px; color: #f59e0b; background: #1c1500; border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
 .section-label { font-size: 10px; color: #7a9a7a; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 
 .option-card { border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; border: 1px solid; }
@@ -55,8 +54,6 @@ a { color: #6b9ef4; }
 .option-rec { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
 .option-name { font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .option-badge { font-size: 11px; border-radius: 4px; padding: 2px 7px; }
-.option-route { font-size: 12px; color: #7a9a7a; margin-top: 2px; }
-.option-note { font-size: 11px; color: #f59e0b; margin-top: 3px; }
 .option-price { text-align: right; }
 .price-main { font-size: 16px; font-weight: bold; }
 .price-sub { font-size: 11px; color: #7a9a7a; }
@@ -112,12 +109,12 @@ a { color: #6b9ef4; }
 </div>
 
 <script>
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
 const PROXY_URL = "/api/search";
 const POINTS_RATE = 0.014;
 const AIRLINE_MAP = { "AD":"Azul", "G3":"Gol", "LA":"LATAM", "JJ":"LATAM" };
 
-// ─── DADOS ──────────────────────────────────────────────────────────────────
+// ─── DADOS ───────────────────────────────────────────────────────────────────
 const EXISTING_FLIGHTS = {
   "2026-05-04": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"AW86GN" }, tue: null },
   "2026-05-11": { mon: { airline:"Azul", route:"CNF→SDU", time:"06:10", code:"AP2WWK" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:30", code:"AP2WWK" } },
@@ -167,7 +164,7 @@ const HOLIDAY_BLOCKED = {
   "2026-12-28":"Reveillon 2027 (01/01)",
 };
 
-// ─── STATE ───────────────────────────────────────────────────────────────────
+// ─── STATE ────────────────────────────────────────────────────────────────────
 let state = {
   tab: "dashboard",
   searching: null,
@@ -196,35 +193,31 @@ function saveState() {
   } catch(e) {}
 }
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────────
 function addDays(dateStr, n) {
   const d = new Date(dateStr + "T12:00:00");
   d.setDate(d.getDate() + n);
   return d.toISOString().split("T")[0];
 }
-
 function fmtDate(str) {
   const d = new Date(str + "T12:00:00");
   return d.toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit" });
 }
-
 function fmtMonth(str) {
   const d = new Date(str + "T12:00:00");
   return d.toLocaleDateString("pt-BR", { month:"long", year:"numeric" });
 }
-
 function isInVacation(monStr) {
   const mon = new Date(monStr + "T12:00:00");
   const fri = new Date(monStr + "T12:00:00");
   fri.setDate(mon.getDate() + 4);
-  for (let v of VACATION_PERIODS) {
+  for (const v of VACATION_PERIODS) {
     const vs = new Date(v.start + "T00:00:00");
     const ve = new Date(v.end + "T23:59:59");
     if (fri >= vs && mon <= ve) return v.label;
   }
   return null;
 }
-
 function getWeekStatus(monStr) {
   const flights = EXISTING_FLIGHTS[monStr];
   if (!flights) return { type:"unknown" };
@@ -238,11 +231,11 @@ function getWeekStatus(monStr) {
   if (monF || tueF) return { type:"partial", flights:merged };
   return { type:"missing", flights:merged };
 }
-
 function gLink(origin, dest, date) {
   return "https://www.google.com/travel/flights?q=Voos+" + origin + "+para+" + dest + "+" + date.replace(/-/g,"");
 }
 
+// ─── FLIGHT HELPERS ───────────────────────────────────────────────────────────
 function getSegs(f) {
   if (Array.isArray(f.flightInfo) && f.flightInfo[0])
     return f.flightInfo[0].segments || [];
@@ -253,51 +246,36 @@ function getSegs(f) {
 }
 function getDepTime(f) {
   const segs = getSegs(f);
-  if (segs.length > 0 && segs[0].departure) {
+  if (segs.length > 0 && segs[0].departure)
     return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11,16) || "";
-  }
-  let dep = f.departureDateTime || f.departure || "";
-  return dep.indexOf("T") >= 0 ? dep.slice(11,16) : dep.slice(0,5);
+  return "";
 }
-function getAirlineFromFlight(f) {
+function getArrTime(f) {
+  const segs = getSegs(f);
+  if (segs.length === 0) return "";
+  const last = segs[segs.length - 1];
+  if (last.arrival) return last.arrival.time || (last.arrival.dateTime || "").slice(11,16) || "";
+  return "";
+}
+function getAirlineName(f) {
   const segs = getSegs(f);
   if (segs.length > 0 && segs[0].marketingCarrier) {
     const code = segs[0].marketingCarrier.code || "";
     return AIRLINE_MAP[code] || code;
   }
-  return f.airline || (f.validatingAirlineCodes && f.validatingAirlineCodes[0]) || "";
+  return f.airline || "";
 }
-
-function getArrTime(f) {
-  const segs = getSegs(f);
-  if (segs.length > 0) {
-    const last = segs[segs.length - 1];
-    if (last.arrival) return last.arrival.time || (last.arrival.dateTime || "").slice(11,16) || "";
-  }
-  let arr = f.arrivalDateTime || f.arrival || "";
-  return arr.indexOf("T") >= 0 ? arr.slice(11,16) : arr.slice(0,5);
-}
-
 function getPricing(f) {
   const opts = [];
   if (f.pricingOptions && f.pricingOptions.length) opts.push(...f.pricingOptions);
   if (f.offers && f.offers.length) opts.push(...f.offers);
   return opts;
 }
-function isEconomyOpt(opt) {
-  const NON_ECO = /business|executiv|first|premium|suite/i;
-  for (const key of ["cabinClass","cabin","fareClass","class","fareType","service","cabinType","productClass","fareFamily"]) {
-    const v = opt[key];
-    if (v && NON_ECO.test(String(v))) return false;
-  }
-  return true;
-}
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
-    if (offer.providerId === "livelo") {
+    if (offer.providerId === "livelo")
       return pr.baseFare || pr.adultPrice || pr.companyPrice || pr.total || 0;
-    }
     return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
            pr.totalAmount || pr.fare || pr.totalFare || 0;
   }
@@ -307,93 +285,19 @@ function extractPrice(offer) {
 }
 function getPrice(f) {
   const all = getPricing(f);
-  let p = 0;
-  if (all.length > 0) {
-    const eco = all.filter(isEconomyOpt);
-    const pool = eco.length > 0 ? eco : all;
-    const prices = pool.map(extractPrice).filter(x => x > 0);
-    p = prices.length > 0 ? Math.min(...prices) : 0;
-  }
-  if (!p) p = f.price || f.total || f.totalPrice || f.amount || 0;
-  if (typeof p === "string") p = parseFloat(p.replace("R$","").replace(/\./g,"").replace(",",".")) || 0;
-  return Math.round(p);
+  if (all.length === 0) return f.price || f.total || f.totalPrice || f.amount || 0;
+  const prices = all.map(extractPrice).filter(x => x > 0);
+  return prices.length > 0 ? Math.min(...prices) : 0;
+}
+function progLabel(prog) {
+  if (/gol|smiles/.test(prog))  return "Smiles";
+  if (/azul|tudo/.test(prog))   return "TudoAzul";
+  if (/latam/.test(prog))       return "LATAM Pass";
+  if (/livelo/.test(prog))      return "Livelo";
+  return prog || "Pontos";
 }
 
-function normaliseSyncResponse(data, leg, origin, dest, date) {
-  const isMonday = leg === "mon";
-  const cashOpts = [];
-  const ptsOpts = [];
-
-  console.log("[DEBUG] normaliseSyncResponse leg:", leg, "direct:", (data.directFlights||[]).length, "miles:", (data.milesGroups||[]).length);
-
-  const buildOpt = (f, note) => {
-    // Detect the actual Rio airport (GIG or SDU) from segment arrival/departure
-    const segs = getSegs(f);
-    let rioPort = "";
-    if (segs.length > 0) {
-      if (isMonday) {
-        // outbound: Rio airport is the last segment's arrival
-        const last = segs[segs.length - 1];
-        rioPort = (last.arrival && last.arrival.airport) || "";
-      } else {
-        // return: Rio airport is the first segment's departure
-        rioPort = (segs[0].departure && segs[0].departure.airport) || "";
-      }
-    }
-    const fOrig = isMonday ? "CNF" : (rioPort || origin);
-    const fDest = isMonday ? (rioPort || dest) : "CNF";
-    return {
-      airline: getAirlineFromFlight(f),
-      payment_type: "cash",
-      departure: getDepTime(f),
-      arrival: getArrTime(f),
-      price: getPrice(f) || 0,
-      currency: "BRL",
-      link: f.deepLink || gLink(fOrig, fDest, date),
-      note,
-      airport: rioPort,
-      sduPreferred: rioPort === "SDU",
-    };
-  };
-
-  // Only show direct (nonstop) flights
-  for (const f of (data.directFlights || [])) {
-    cashOpts.push(buildOpt(f, "direto"));
-  }
-  cashOpts.sort((a,b) => a.price - b.price);
-
-  const MILES_LINKS = {
-    smiles:   (o,d,dt) => "https://www.smiles.com.br/passagens-aereas?originAirport="+o+"&destinationAirport="+d+"&departureDate="+dt+"&adults=1",
-    tudoazul: (o,d,dt) => "https://www.tudoazul.com.br/voos?origem="+o+"&destino="+d+"&dataIda="+dt,
-    tudo_azul:(o,d,dt) => "https://www.tudoazul.com.br/voos?origem="+o+"&destino="+d+"&dataIda="+dt,
-    livelo:   ()       => "https://www.livelo.com.br/use-seus-pontos-passagens",
-    azul:     (o,d,dt) => "https://www.tudoazul.com.br/voos?origem="+o+"&destino="+d+"&dataIda="+dt,
-  };
-  const miles = data.milesGroups || [];
-  for (const m of miles) {
-    const prog = ((m.pointsType||m.providerId||m.program||m.type)||"").toLowerCase();
-    const pts = m.pointsRequired || m.points || m.miles || 0;
-    if (!pts) continue;
-    const depM = (m.departureDateTime||"").indexOf("T") >= 0 ? m.departureDateTime.split("T")[1].slice(0,5) : "";
-    const taxas = Math.round(m.taxAmount||0);
-    const ptsBRL = Math.round(pts * POINTS_RATE);
-    const progKey = Object.keys(MILES_LINKS).find(k => prog.includes(k)) || "";
-    const linkFn = MILES_LINKS[progKey];
-    const link = linkFn ? linkFn(origin, dest, date) : gLink(origin, dest, date);
-    const label = prog.includes("gol")?"Smiles":prog.includes("smiles")?"Smiles":prog.includes("azul")?"TudoAzul":prog.includes("tudo")?"TudoAzul":prog.includes("latam")?"LATAM Pass":prog.includes("livelo")?"Livelo":prog;
-    ptsOpts.push({ airline:AIRLINE_MAP[m.airline]||m.airline||"", payment_type:"points", departure:depM, arrival:(m.arrivalDateTime||"").indexOf("T")>=0?m.arrivalDateTime.split("T")[1].slice(0,5):"", points:pts, points_value_brl:ptsBRL, taxas, link, note:label });
-  }
-  ptsOpts.sort((a,b) => (a.points_value_brl+a.taxas)-(b.points_value_brl+b.taxas));
-
-  const cheapCash = cashOpts[0] ? cashOpts[0].price : null;
-  const cheapPts = ptsOpts[0] ? (ptsOpts[0].points_value_brl+ptsOpts[0].taxas) : null;
-  const bestDeal = (cheapPts !== null && cheapCash !== null && cheapPts < cheapCash) ? "points" : "cash";
-  const savings = cheapPts !== null && cheapCash !== null ? Math.abs(cheapCash-cheapPts) : 0;
-  return { leg, route:origin+"→"+dest, best_deal:bestDeal,
-    best_deal_reason:bestDeal==="points"?"Pontos equivalem R$"+cheapPts+" vs R$"+cheapCash+" — economiza R$"+savings:(cheapCash?"Mais barato R$"+cheapCash+(cheapPts?" · Pontos R$"+cheapPts:""):"Sem voos no horario"),
-    recommended:0, cashOptions:cashOpts, ptsOptions:ptsOpts, options:cashOpts.concat(ptsOpts) };
-}
-
+// ─── SEARCH ───────────────────────────────────────────────────────────────────
 async function searchFlights(monStr, missingLegs) {
   const tue = addDays(monStr, 1);
 
@@ -401,96 +305,115 @@ async function searchFlights(monStr, missingLegs) {
     const isMonday = leg === "mon";
     const date = isMonday ? monStr : tue;
 
-    // Search SDU and GIG separately in parallel so neither airport is missed
+    // Two parallel API calls: one per Rio airport
     const apiResults = await Promise.all(["SDU", "GIG"].map(async apt => {
       const orig = isMonday ? "CNF" : apt;
-      const dest = isMonday ? apt : "CNF";
+      const dest = isMonday ? apt   : "CNF";
       try {
-        const body = {type:"one_way", slices:[{origin:orig, destination:dest, departureDate:date}], passengers:[{type:"adult",count:1}], cabinClass:"economy", include_miles:true, miles_programs:["tudo_azul","azul","smiles","gol","livelo","latam"]};
-        const res = await fetch(PROXY_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-        console.log("[DEBUG] fetch "+orig+"→"+dest+" status:", res.status);
-        if (!res.ok) { const err = await res.text(); throw new Error("API "+res.status+": "+err.slice(0,150)); }
+        const body = {
+          type: "one_way",
+          slices: [{ origin: orig, destination: dest, departureDate: date }],
+          passengers: [{ type: "adult", count: 1 }],
+          cabinClass: "economy",
+          include_miles: true,
+          miles_programs: ["tudo_azul", "azul", "smiles", "gol", "livelo", "latam"],
+        };
+        const res = await fetch(PROXY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-        const nDirect = (data.directFlights||[]).length;
-        const nAll = (data.flightGroups||[]).length;
-        const nMiles = (data.milesGroups||[]).length;
-        console.log(`[DEBUG] ${orig}→${dest}: direct=${nDirect} all=${nAll} miles=${nMiles}`);
-        // Log airlines + departure times found in directFlights
-        const airlines = [...new Set((data.directFlights||[]).map(f => getAirlineFromFlight(f)))];
-        console.log(`[DEBUG] ${orig}→${dest} airlines in directFlights:`, airlines);
-        const depTimes = (data.directFlights||[]).map(f => `${getAirlineFromFlight(f)} ${getDepTime(f)}`).sort();
-        console.log(`[DEBUG] ${orig}→${dest} direct departures:`, depTimes);
-        return data;
+        console.log(`[${orig}→${dest}] direct=${(data.directFlights||[]).length} miles=${(data.milesGroups||[]).length}`);
+        return { data, apt };
       } catch(e) {
-        console.log("[DEBUG] search error "+orig+"→"+dest+":", e.message);
-        return {directFlights:[], flightGroups:[], milesGroups:[]};
+        console.log(`[${orig}→${dest}] error:`, e.message);
+        return { data: { directFlights: [], milesGroups: [] }, apt };
       }
     }));
 
-    // Log per-airport direct counts before merging
-    for (const [i, apt] of ["SDU","GIG"].entries()) {
-      const d = apiResults[i] || {};
-      const ro = isMonday ? "CNF" : apt, rd = isMonday ? apt : "CNF";
-      const nD = (d.directFlights||[]).length;
-      const byAirline = {};
-      (d.directFlights||[]).forEach(f => { const a = getAirlineFromFlight(f)||"?"; byAirline[a]=(byAirline[a]||0)+1; });
-      const azulDeps = (d.directFlights||[]).filter(f=>getAirlineFromFlight(f)==="Azul").map(f=>getDepTime(f)).sort();
-      console.log(`[PRE-MERGE] ${ro}→${rd}: directFlights=${nD} airlines=${JSON.stringify(byAirline)} Azul deps=[${azulDeps}]`);
+    // Merge direct flights, tag with airport, deduplicate by signature
+    const seenSigs = new Set();
+    const tagged = [];
+    for (const { data, apt } of apiResults) {
+      for (const f of (data.directFlights || [])) {
+        const sig = f.signature || f.humanSignature || f.flightSignature || JSON.stringify(f).slice(0, 80);
+        if (!seenSigs.has(sig)) { seenSigs.add(sig); tagged.push({ f, apt }); }
+      }
     }
+    console.log(`[MERGED ${leg}] direct=${tagged.length}`);
 
-    // Merge SDU and GIG results
-    const merged = {
-      directFlights: apiResults.flatMap(d => d.directFlights||[]),
-      flightGroups:  apiResults.flatMap(d => d.flightGroups||[]),
-      milesGroups:   apiResults.flatMap(d => d.milesGroups||[]),
-    };
-    console.log(`[MERGED] leg=${leg}: directFlights=${merged.directFlights.length} miles=${merged.milesGroups.length}`);
+    // Build cash options — min price across ALL pricingOptions (no cabin filter)
+    const cashOpts = tagged.map(({ f, apt }) => ({
+      airline:   getAirlineName(f),
+      departure: getDepTime(f),
+      arrival:   getArrTime(f),
+      price:     Math.round(getPrice(f)),
+      airport:   apt,
+      payment_type: "cash",
+    })).filter(o => o.price > 0);
+    cashOpts.sort((a, b) => a.price - b.price);
 
-    const orig = isMonday ? "CNF" : "RIO";
-    const dest = isMonday ? "RIO" : "CNF";
-    return normaliseSyncResponse(merged, leg, orig, dest, date);
+    // Merge miles from both airports
+    const allMiles = apiResults.flatMap(r => r.data.milesGroups || []);
+    const ptsOpts = allMiles.map(m => ({
+      airline:       AIRLINE_MAP[m.airline] || m.airline || "",
+      departure:     m.departure || "",
+      arrival:       m.arrival   || "",
+      points:        m.pointsRequired || 0,
+      program:       progLabel((m.pointsType || m.providerId || "").toLowerCase()),
+      taxas:         Math.round(m.taxAmount || 0),
+      cashEquivalent: m.cashEquivalent || Math.round((m.pointsRequired || 0) * POINTS_RATE + (m.taxAmount || 0)),
+      payment_type: "points",
+    })).filter(o => o.points > 0);
+    ptsOpts.sort((a, b) => a.cashEquivalent - b.cashEquivalent);
+
+    return { leg, date, cashOpts, ptsOpts };
   }));
 
-  const allResults = legResults.filter(Boolean);
-  const total = allResults.reduce((s,r) => s+(r.options||[]).length, 0);
-  return {results:allResults, summary:total+" voos encontrados · "+new Date().toLocaleTimeString("pt-BR")};
+  const totalDirect = legResults.reduce((s, r) => s + r.cashOpts.length, 0);
+  return {
+    results: legResults,
+    summary: totalDirect + " voos diretos encontrados · " + new Date().toLocaleTimeString("pt-BR"),
+  };
 }
 
-// ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 function addNotif(msg, type) {
   const c = document.getElementById("notifContainer");
   const d = document.createElement("div");
   d.className = "notif";
-  d.style.background = type==="success"?"#1e4a2e":type==="error"?"#5a1a1a":"#1e293b";
+  d.style.background = type === "success" ? "#1e4a2e" : type === "error" ? "#5a1a1a" : "#1e293b";
   d.textContent = msg;
   c.appendChild(d);
   setTimeout(() => d.remove(), 4000);
 }
 
-// ─── TAB SWITCHING ───────────────────────────────────────────────────────────
+// ─── TAB SWITCHING ────────────────────────────────────────────────────────────
 function switchTab(tab) {
   state.tab = tab;
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   event.target.classList.add("active");
   ["dashboard","search","approved","confirmed"].forEach(t => {
-    document.getElementById("tab-"+t).style.display = t===tab?"block":"none";
+    document.getElementById("tab-"+t).style.display = t === tab ? "block" : "none";
   });
   render();
 }
 
-// ─── RENDER ──────────────────────────────────────────────────────────────────
+// ─── RENDER ───────────────────────────────────────────────────────────────────
 function render() {
   renderPills();
   if (state.tab === "dashboard") renderDashboard();
-  if (state.tab === "search") renderSearch();
-  if (state.tab === "approved") renderApproved();
+  if (state.tab === "search")    renderSearch();
+  if (state.tab === "approved")  renderApproved();
   if (state.tab === "confirmed") renderConfirmed();
 }
 
 function renderPills() {
   const todayStr = new Date().toISOString().split("T")[0];
   const weeks = Object.keys(EXISTING_FLIGHTS).sort().filter(mon => addDays(mon,1) >= todayStr);
-  const missing = weeks.filter(mon => { const s=getWeekStatus(mon); return s.type==="missing"||s.type==="partial"; }).length;
+  const missing = weeks.filter(mon => { const s = getWeekStatus(mon); return s.type === "missing" || s.type === "partial"; }).length;
   const apprCount = Object.keys(state.approved).length;
   const confCount = Object.keys(state.confirmed).length;
   document.getElementById("headerPills").innerHTML = `
@@ -530,11 +453,11 @@ function renderDashboard() {
       const tueConf = state.confirmed[mon+"-tue"];
       const monAppr = state.approved[mon+"-mon"];
       const tueAppr = state.approved[mon+"-tue"];
-      const showSearch = status.type==="missing"||status.type==="partial";
+      const showSearch = status.type === "missing" || status.type === "partial";
       const hasResult = !!state.results[mon];
-      const isSrch = state.searching===mon;
+      const isSrch = state.searching === mon;
 
-      const flightLines = (status.type==="vacation"||status.type==="holiday")
+      const flightLines = (status.type === "vacation" || status.type === "holiday")
         ? `<div class="flight-line" style="color:${cfg.badge}">${cfg.icon} ${status.label}</div>`
         : `${flightLineHTML("Seg", status.flights&&status.flights.mon, monConf||monAppr, !!monConf, !!monAppr)}
            ${flightLineHTML("Ter", status.flights&&status.flights.tue, tueConf||tueAppr, !!tueConf, !!tueAppr)}`;
@@ -567,8 +490,8 @@ function renderDashboard() {
 function flightLineHTML(label, flight, extra, isConf, isAppr) {
   const f = flight || extra;
   if (!f) return `<div class="flight-line"><span style="color:#7a9a7a">${label}:</span> <span style="color:#ef4444">sem voo</span></div>`;
-  const icon = isConf?"✅ ":isAppr?"🛒 ":"";
-  const color = isConf?"#A5D6A7":isAppr?"#C8B450":"#D4E8C2";
+  const icon = isConf ? "✅ " : isAppr ? "🛒 " : "";
+  const color = isConf ? "#A5D6A7" : isAppr ? "#C8B450" : "#D4E8C2";
   return `<div class="flight-line" style="color:${color}"><span style="color:#7a9a7a">${label}:</span> ${icon}${f.airline} ${f.route||""} ${f.time||f.departure||""}${f.code?" ["+f.code+"]":""}</div>`;
 }
 
@@ -577,23 +500,22 @@ function renderSearch() {
   const weeks = Object.keys(EXISTING_FLIGHTS).sort().filter(mon => {
     if (addDays(mon,1) < todayStr) return false;
     const s = getWeekStatus(mon);
-    return s.type==="missing"||s.type==="partial";
+    return s.type === "missing" || s.type === "partial";
   });
-
-  let opts = weeks.map(mon => `<option value="${mon}" ${state.selWeek===mon?"selected":""}>${fmtDate(mon)}/${fmtDate(addDays(mon,1))}</option>`).join("");
+  const opts = weeks.map(mon => `<option value="${mon}" ${state.selWeek===mon?"selected":""}>${fmtDate(mon)}/${fmtDate(addDays(mon,1))}</option>`).join("");
 
   let content = `
     <div class="search-bar">
       <select class="search-select" onchange="state.selWeek=this.value;render()">
         <option value="">— selecione a semana —</option>${opts}
       </select>
-      ${state.selWeek?`<button class="btn btn-gold" onclick="doSearch('${state.selWeek}')" ${state.searching?"disabled":""}>
-        ${state.searching?"⏳ Buscando...":"🔍 Pesquisar"}
-      </button>`:""}
+      ${state.selWeek ? `<button class="btn btn-gold" onclick="doSearch('${state.selWeek}')" ${state.searching?"disabled":""}>
+        ${state.searching ? "⏳ Buscando..." : "🔍 Pesquisar"}
+      </button>` : ""}
     </div>`;
 
   if (state.searching) {
-    content += `<div class="loading"><span class="loading-icon">✈</span>Buscando voos reais... até 30 segundos<br><small style="font-size:12px;margin-top:4px;display:block">Consultando Azul, Gol, LATAM, TudoAzul e Smiles</small></div>`;
+    content += `<div class="loading"><span class="loading-icon">✈</span>Buscando voos diretos... aguarde até 30s<br><small style="font-size:12px;margin-top:4px;display:block">CNF→SDU, CNF→GIG e rotas de volta em paralelo</small></div>`;
   } else if (state.selWeek && state.results[state.selWeek]) {
     content += renderResultPanel(state.selWeek, state.results[state.selWeek]);
   }
@@ -601,96 +523,134 @@ function renderSearch() {
   document.getElementById("tab-search").innerHTML = content;
 }
 
+// ─── RESULT PANEL ─────────────────────────────────────────────────────────────
 function renderResultPanel(monStr, result) {
-  if (!result || !result.results || result.results.length === 0) {
-    return `<div class="result-card"><div style="color:#93c5fd">${result&&result.summary?result.summary:"Sem resultados. Tente novamente."}</div></div>`;
-  }
+  if (!result || !result.results || !result.results.length)
+    return `<div class="result-card"><div style="color:#93c5fd">${result&&result.summary||"Sem resultados. Tente novamente."}</div></div>`;
 
-  let html = result.summary ? `<div style="background:#0f2a0f;border:1px solid #1e3a8a;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd">🤖 ${result.summary}</div>` : "";
+  let html = result.summary
+    ? `<div style="background:#0f2a0f;border:1px solid #1e3a8a;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd">🤖 ${result.summary}</div>`
+    : "";
 
   const TOP = 3;
   for (const leg of result.results) {
-    const dateStr = leg.leg==="mon" ? monStr : addDays(monStr,1);
-    const key = monStr+"-"+leg.leg;
-    const isApproved = !!state.approved[key];
-    const apprOpt = state.approved[key];
-    const cashOpts = leg.cashOptions || (leg.options||[]).filter(o => o.payment_type!=="points");
-    const ptsOpts = leg.ptsOptions || (leg.options||[]).filter(o => o.payment_type==="points");
+    const key     = monStr + "-" + leg.leg;
+    const dateStr = leg.leg === "mon" ? monStr : addDays(monStr, 1);
+    const legLabel = leg.leg === "mon" ? "Segunda " + fmtDate(dateStr) : "Terça " + fmtDate(dateStr);
+    const dirLabel = leg.leg === "mon" ? "CNF → Rio" : "Rio → CNF";
 
-    const cashExp = !!(state.expanded && state.expanded[key+"-cash"]);
-    const ptsExp  = !!(state.expanded && state.expanded[key+"-pts"]);
-    const topCash = cashExp ? cashOpts : cashOpts.slice(0, TOP);
-    const topPts  = ptsExp  ? ptsOpts  : ptsOpts.slice(0, TOP);
+    const cashKey = key + "-cash";
+    const ptsKey  = key + "-pts";
+    const cashExp = !!state.expanded[cashKey];
+    const ptsExp  = !!state.expanded[ptsKey];
 
-    const dealBadge = leg.best_deal ? `<div class="badge" style="background:${leg.best_deal==="points"?"#1e3a8a33":"#14532d33"};color:${leg.best_deal==="points"?"#90CAF9":"#A5D6A7"};border-color:${leg.best_deal==="points"?"#1e40af44":"#16653444"}">${leg.best_deal==="points"?"🔵 Pontos valem mais":"💰 Dinheiro melhor"}</div>` : "";
+    // Approved banner
+    const apprFlight = state.approved[key];
+    const approvedBanner = apprFlight ? `
+      <div style="background:#14532d;border-radius:6px;padding:8px 12px;font-size:12px;color:#86efac;margin-bottom:12px">
+        ✅ Aprovado: ${apprFlight.airline} ${apprFlight.departure}
+        — ${apprFlight.payment_type === "points" ? (apprFlight.points||0).toLocaleString("pt-BR")+" pts" : "R$ "+(apprFlight.price||0).toLocaleString("pt-BR")}
+      </div>` : "";
 
-    const approvedBanner = isApproved && apprOpt ? `<div style="background:#14532d;border-radius:6px;padding:8px 12px;font-size:12px;color:#86efac;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <span>✅ ${apprOpt.airline} ${apprOpt.departure} — ${apprOpt.payment_type==="points"?(apprOpt.points||0).toLocaleString("pt-BR")+" pts":"R$"+(apprOpt.price||0)}</span>
-      ${apprOpt.link?`<a href="${apprOpt.link}" target="_blank">${apprOpt.payment_type==="points"?"→ Resgatar":"→ Comprar"}</a>`:""}
-    </div>` : "";
+    // Cash section
+    const visCash = cashExp ? leg.cashOpts : leg.cashOpts.slice(0, TOP);
+    const cashMore = leg.cashOpts.length > TOP
+      ? `<button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="toggleExpand('${cashKey}')">
+           ${cashExp ? "▲ Ver menos" : "▼ Ver todos os " + leg.cashOpts.length + " voos"}
+         </button>` : "";
+    const cashHTML = leg.cashOpts.length === 0
+      ? `<div style="color:#6b7280;font-size:13px;padding:6px 0">Nenhum voo direto encontrado.</div>`
+      : `<div class="section-label">💰 Pagar em dinheiro</div>
+         ${visCash.map((opt, i) => cashCardHTML(opt, i === 0, key, monStr, leg.leg)).join("")}
+         ${cashMore}`;
 
-    const cashExpandBtn = cashOpts.length > TOP ? `<button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="toggleExpand('${key}-cash')">${cashExp?"▲ Ver menos":"▼ Ver todos os "+cashOpts.length+" voos"}</button>` : "";
-    const ptsExpandBtn  = ptsOpts.length  > TOP ? `<button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="toggleExpand('${key}-pts')">${ptsExp?"▲ Ver menos":"▼ Ver todas as "+ptsOpts.length+" opções de pontos"}</button>` : "";
-
-    const cashHTML = cashOpts.length > 0 ? `
-      <div class="section-label">💰 Pagar em dinheiro</div>
-      ${topCash.map((opt,j) => optionCardHTML(opt, (!leg.best_deal||leg.best_deal==="cash")&&j===0, isApproved, leg.route, monStr, leg.leg)).join("")}
-      ${cashExpandBtn}` : "";
-
-    const ptsHTML = ptsOpts.length > 0 ? `
-      <div class="section-label" style="margin-top:10px">🔵 Resgatar pontos TudoAzul / Smiles</div>
-      ${topPts.map((opt,j) => optionCardHTML(opt, leg.best_deal==="points"&&j===0, isApproved, leg.route, monStr, leg.leg)).join("")}
-      ${ptsExpandBtn}` : "";
-
-    const emptyMsg = cashOpts.length===0&&ptsOpts.length===0 ? `<div style="color:#6b7280;font-size:13px">Nenhum voo encontrado no horario solicitado.</div>` : "";
+    // Points section
+    const visPts = ptsExp ? leg.ptsOpts : leg.ptsOpts.slice(0, TOP);
+    const ptsMore = leg.ptsOpts.length > TOP
+      ? `<button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="toggleExpand('${ptsKey}')">
+           ${ptsExp ? "▲ Ver menos" : "▼ Ver todas as " + leg.ptsOpts.length + " opções"}
+         </button>` : "";
+    const ptsHTML = leg.ptsOpts.length === 0 ? "" :
+      `<div class="section-label" style="margin-top:16px">🔵 Resgatar pontos</div>
+       ${visPts.map((opt, i) => ptsCardHTML(opt, i === 0, key, monStr, leg.leg)).join("")}
+       ${ptsMore}`;
 
     html += `
       <div class="result-card">
         <div class="result-header">
-          <div class="result-label">${leg.leg==="mon"?"Segunda "+fmtDate(dateStr):"Terca "+fmtDate(dateStr)} · ${leg.route}</div>
-          ${dealBadge}
+          <div class="result-label">${legLabel} · ${dirLabel}</div>
         </div>
-        ${leg.best_deal_reason?`<div class="reason-box">💡 ${leg.best_deal_reason}</div>`:""}
         ${approvedBanner}
-        ${cashHTML}${ptsHTML}${emptyMsg}
+        ${cashHTML}
+        ${ptsHTML}
       </div>`;
   }
   return html;
 }
 
-function optionCardHTML(opt, isRec, isApproved, route, monStr, leg) {
-  const isPoints = opt.payment_type==="points";
-  const bg = isRec?(isPoints?"#0f1a2a":"#0f2a0f"):"#1A2E1A";
-  const border = isRec?(isPoints?"#1e3a5a":"#2d502d"):"#2d502d";
-  const recLabel = isRec?`<div class="option-rec" style="color:${isPoints?"#90CAF9":"#4CAF50"}">${isPoints?"🔵 MELHOR EM PONTOS":"⭐ RECOMENDADO"}</div>`:"";
-  const badgeBg = isPoints?"#1e3a8a33":"#37415133";
-  const badgeColor = isPoints?"#90CAF9":"#9ca3af";
-  const priceHTML = isPoints
-    ? `<div class="price-main" style="color:#93c5fd">${(opt.points||0).toLocaleString("pt-BR")} pts</div><div class="price-sub">≈ R$${opt.points_value_brl}${opt.taxas?" + R$"+opt.taxas+" taxas":""}</div>`
-    : `<div class="price-main" style="color:#C8B450">R$ ${(opt.price||0).toLocaleString("pt-BR")}</div>`;
-  const linkHTML = opt.link ? `<a href="${opt.link}" target="_blank" style="font-size:11px">→ ${isPoints?"Resgatar":"Comprar"}</a>` : "";
-  const approveBtn = !isApproved ? `<button class="btn ${isPoints?"btn-blue":"btn-green"}" onclick='approveOpt(${JSON.stringify(JSON.stringify(Object.assign({},opt,{route:route})))}, "${monStr}", "${leg}")'>✅ Aprovar</button>` : "";
+function cashCardHTML(opt, isBest, key, monStr, leg) {
+  const aptBadge = opt.airport === "SDU"
+    ? `<span class="option-badge" style="background:#14532d44;color:#86efac;border:1px solid #16653444">★ SDU preferido</span>`
+    : opt.airport === "GIG"
+    ? `<span class="option-badge" style="background:#37415133;color:#9ca3af;border:1px solid #37415155">GIG — Galeão</span>`
+    : "";
+  const topBadge = isBest ? `<div class="option-rec" style="color:#4CAF50">⭐ MAIS BARATO</div>` : "";
+  const bg = isBest ? "#0f2a0f" : "#1A2E1A";
+
+  const d = JSON.stringify({ airline:opt.airline, departure:opt.departure, arrival:opt.arrival, price:opt.price, airport:opt.airport, payment_type:"cash" });
+  const approveBtn = !state.approved[key]
+    ? `<button class="btn btn-green" onclick='approveOpt(${JSON.stringify(d)}, "${monStr}", "${leg}")'>✅ Aprovar</button>`
+    : "";
 
   return `
-    <div class="option-card" style="background:${bg};border-color:${border}">
+    <div class="option-card" style="background:${bg};border-color:#2d502d">
       <div class="option-info">
-        ${recLabel}
+        ${topBadge}
         <div class="option-name">
-          <span>${isPoints?"🔵":"✈"} ${opt.airline}</span>
-          <span class="option-badge" style="background:${badgeBg};color:${badgeColor}">${isPoints?"PONTOS":"DINHEIRO"}</span>
-          ${opt.airport?`<span class="option-badge" style="background:${opt.airport==="SDU"?"#14532d33":"#37415133"};color:${opt.airport==="SDU"?"#86efac":"#9ca3af"}">${opt.airport}</span>`:""}
+          <span>✈ ${opt.airline}</span>
+          ${aptBadge}
           <span style="font-size:13px;color:#9ca3af">${opt.departure}${opt.arrival?" → "+opt.arrival:""}</span>
         </div>
-        <div class="option-route">${route} · ${opt.note||""}</div>
-        ${opt.airport==="SDU"?'<div class="option-note">⭐ SDU — aeroporto preferido (centro do Rio)</div>':opt.airport==="GIG"?'<div class="option-note" style="color:#9ca3af">GIG — Aeroporto Galeão</div>':""}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-        <div class="option-price">${priceHTML}${linkHTML}</div>
+        <div class="option-price">
+          <div class="price-main" style="color:#C8B450">R$ ${(opt.price||0).toLocaleString("pt-BR")}</div>
+        </div>
         ${approveBtn}
       </div>
     </div>`;
 }
 
+function ptsCardHTML(opt, isBest, key, monStr, leg) {
+  const topBadge = isBest ? `<div class="option-rec" style="color:#90CAF9">🔵 MAIS BARATO EM PONTOS</div>` : "";
+  const bg = isBest ? "#0f1a2a" : "#1A2E1A";
+
+  const d = JSON.stringify({ airline:opt.airline, departure:opt.departure, arrival:opt.arrival, points:opt.points, taxas:opt.taxas, cashEquivalent:opt.cashEquivalent, program:opt.program, payment_type:"points" });
+  const approveBtn = !state.approved[key]
+    ? `<button class="btn btn-blue" onclick='approveOpt(${JSON.stringify(d)}, "${monStr}", "${leg}")'>✅ Aprovar</button>`
+    : "";
+
+  return `
+    <div class="option-card" style="background:${bg};border-color:#1e3a5a">
+      <div class="option-info">
+        ${topBadge}
+        <div class="option-name">
+          <span>🔵 ${opt.airline||"?"}</span>
+          <span class="option-badge" style="background:#1e3a8a33;color:#90CAF9">${opt.program}</span>
+          <span style="font-size:13px;color:#9ca3af">${opt.departure}${opt.arrival?" → "+opt.arrival:""}</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <div class="option-price">
+          <div class="price-main" style="color:#93c5fd">${(opt.points||0).toLocaleString("pt-BR")} pts</div>
+          <div class="price-sub">≈ R$ ${opt.cashEquivalent}${opt.taxas?" (R$"+opt.taxas+" taxas)":""}</div>
+        </div>
+        ${approveBtn}
+      </div>
+    </div>`;
+}
+
+// ─── APPROVED / CONFIRMED TABS ────────────────────────────────────────────────
 function renderApproved() {
   const keys = Object.keys(state.approved).sort();
   if (keys.length === 0) {
@@ -698,11 +658,11 @@ function renderApproved() {
     return;
   }
   let html = keys.map(key => flightCardHTML(key, state.approved[key], "approved")).join("");
-  const totalCash = Object.values(state.approved).filter(f=>f.payment_type!=="points").reduce((s,f)=>s+(f.price||0),0);
-  const totalPts = Object.values(state.approved).filter(f=>f.payment_type==="points").reduce((s,f)=>s+(f.points||0),0);
+  const totalCash = Object.values(state.approved).filter(f => f.payment_type !== "points").reduce((s, f) => s + (f.price||0), 0);
+  const totalPts = Object.values(state.approved).filter(f => f.payment_type === "points").reduce((s, f) => s + (f.points||0), 0);
   html += `<div class="summary-bar">
     <span>Dinheiro: <strong style="color:#C8B450">R$ ${totalCash.toLocaleString("pt-BR")}</strong></span>
-    ${totalPts>0?`<span>Pontos: <strong style="color:#93c5fd">${totalPts.toLocaleString("pt-BR")} pts</strong></span>`:""}
+    ${totalPts > 0 ? `<span>Pontos: <strong style="color:#93c5fd">${totalPts.toLocaleString("pt-BR")} pts</strong></span>` : ""}
   </div>`;
   document.getElementById("tab-approved").innerHTML = html;
 }
@@ -721,7 +681,7 @@ function renderConfirmed() {
         <div style="font-size:13px;color:#93c5fd;font-weight:bold;margin-bottom:14px">✏️ Registrar compra</div>
         <div class="form-grid">
           <div class="form-field"><label>Semana (Segunda)</label><input type="date" value="${mf.week}" onchange="updateManual('week',this.value)"></div>
-          <div class="form-field"><label>Trecho</label><select onchange="updateManual('leg',this.value)"><option value="mon" ${mf.leg==="mon"?"selected":""}>Segunda (ida)</option><option value="tue" ${mf.leg==="tue"?"selected":""}>Terca (volta)</option></select></div>
+          <div class="form-field"><label>Trecho</label><select onchange="updateManual('leg',this.value)"><option value="mon" ${mf.leg==="mon"?"selected":""}>Segunda (ida)</option><option value="tue" ${mf.leg==="tue"?"selected":""}>Terça (volta)</option></select></div>
           <div class="form-field"><label>Companhia</label><select onchange="updateManual('airline',this.value)"><option>Azul</option><option>Gol</option><option>LATAM</option></select></div>
           <div class="form-field"><label>Rota</label><select onchange="updateManual('route',this.value)"><option>CNF→SDU</option><option>SDU→CNF</option><option>CNF→GIG</option><option>GIG→CNF</option></select></div>
           <div class="form-field"><label>Horario</label><input type="text" value="${mf.departure}" placeholder="08:15" onchange="updateManual('departure',this.value)"></div>
@@ -744,24 +704,27 @@ function renderConfirmed() {
 }
 
 function flightCardHTML(key, flight, mode) {
-  const isPoints = flight.payment_type==="points";
-  const isConf = mode==="confirmed";
-  const borderColor = isConf?"#2d502d":isPoints?"#1e3a5a":"#92400e";
-  const badgeColor = isConf?"#4CAF50":isPoints?"#90CAF9":"#C8B450";
-  const badgeText = isConf?("✅ CONFIRMADO"+(flight.code?" · "+flight.code:"")):(isPoints?"🔵 RESGATAR PONTOS":"🛒 COMPRAR");
-  const dateLbl = flight.leg==="mon"?"Segunda "+fmtDate(flight.week):"Terca "+fmtDate(addDays(flight.week,1));
+  const isPoints = flight.payment_type === "points";
+  const isConf = mode === "confirmed";
+  const borderColor = isConf ? "#2d502d" : isPoints ? "#1e3a5a" : "#92400e";
+  const badgeColor = isConf ? "#4CAF50" : isPoints ? "#90CAF9" : "#C8B450";
+  const badgeText = isConf
+    ? ("✅ CONFIRMADO" + (flight.code ? " · " + flight.code : ""))
+    : (isPoints ? "🔵 RESGATAR PONTOS" : "🛒 COMPRAR");
+  const dateLbl = flight.leg === "mon" ? "Segunda " + fmtDate(flight.week) : "Terça " + fmtDate(addDays(flight.week, 1));
   const priceHTML = isPoints
-    ? `<div style="font-size:16px;font-weight:bold;color:#93c5fd">${(flight.points||0).toLocaleString("pt-BR")} pts</div><div style="font-size:11px;color:#6b7280">≈ R$${flight.points_value_brl||0}${flight.taxas?" + R$"+flight.taxas+" taxas":""}</div>`
+    ? `<div style="font-size:16px;font-weight:bold;color:#93c5fd">${(flight.points||0).toLocaleString("pt-BR")} pts</div>
+       <div style="font-size:11px;color:#6b7280">≈ R$${flight.cashEquivalent||0}${flight.taxas?" (R$"+flight.taxas+" taxas)":""}</div>`
     : `<div style="font-size:16px;font-weight:bold;color:#C8B450">R$ ${(flight.price||0).toLocaleString("pt-BR")}</div>`;
-  const linkHTML = flight.link&&!isConf ? `<a href="${flight.link}" target="_blank" style="font-size:11px">→ ${isPoints?"Resgatar":"Comprar"}</a>` : "";
-  const confirmBtn = mode==="approved" ? `<button class="btn btn-green" onclick="confirmFlight('${key}')">✅ Confirmar</button>` : "";
+  const linkHTML = flight.link && !isConf ? `<a href="${flight.link}" target="_blank" style="font-size:11px">→ ${isPoints?"Resgatar":"Comprar"}</a>` : "";
+  const confirmBtn = mode === "approved" ? `<button class="btn btn-green" onclick="confirmFlight('${key}')">✅ Confirmar</button>` : "";
   const removeBtn = `<button class="btn btn-ghost" onclick="removeFlight('${key}','${mode}')">✕</button>`;
 
   return `
     <div class="flight-card" style="border-color:${borderColor}">
       <div class="flight-card-info">
         <div class="flight-card-badge" style="color:${badgeColor}">${badgeText}</div>
-        <div class="flight-card-name">${flight.airline} · ${flight.route} · ${flight.departure}</div>
+        <div class="flight-card-name">${flight.airline} · ${flight.route||""} · ${flight.departure}</div>
         <div class="flight-card-date">${dateLbl}</div>
       </div>
       <div class="flight-card-actions">
@@ -771,7 +734,7 @@ function flightCardHTML(key, flight, mode) {
     </div>`;
 }
 
-// ─── ACTIONS ─────────────────────────────────────────────────────────────────
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
 async function doSearch(monStr) {
   const status = getWeekStatus(monStr);
   const missing = [];
@@ -781,7 +744,7 @@ async function doSearch(monStr) {
   state.searching = monStr;
   state.selWeek = monStr;
   state.tab = "search";
-  document.querySelectorAll(".tab").forEach((t,i) => t.classList.toggle("active", i===1));
+  document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("active", i === 1));
   document.getElementById("tab-search").style.display = "block";
   document.getElementById("tab-dashboard").style.display = "none";
   render();
@@ -798,7 +761,6 @@ async function doSearch(monStr) {
 }
 
 function toggleExpand(key) {
-  if (!state.expanded) state.expanded = {};
   state.expanded[key] = !state.expanded[key];
   render();
 }
@@ -806,32 +768,29 @@ function toggleExpand(key) {
 function viewResult(monStr) {
   state.selWeek = monStr;
   state.tab = "search";
-  document.querySelectorAll(".tab").forEach((t,i) => t.classList.toggle("active", i===1));
-  ["dashboard","approved","confirmed"].forEach(t => document.getElementById("tab-"+t).style.display="none");
+  document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("active", i === 1));
+  ["dashboard","approved","confirmed"].forEach(t => document.getElementById("tab-"+t).style.display = "none");
   document.getElementById("tab-search").style.display = "block";
   render();
 }
 
 function approveOpt(optStr, monStr, leg) {
   const opt = JSON.parse(optStr);
-  const tue = addDays(monStr, 1);
-  const routeParts = (opt.route||"CNF-SDU").replace("→","-").split("-");
-  const orig = routeParts[0]||"CNF";
-  const dest = routeParts[1]||"SDU";
-  const date = leg==="mon" ? monStr : tue;
-  const link = opt.payment_type==="points"
-    ? "https://www.tudoazul.com.br/voos?origem="+orig+"&destino="+dest+"&dataIda="+date
-    : gLink(orig, dest, date);
-  state.approved[monStr+"-"+leg] = Object.assign({}, opt, { link, leg, week:monStr });
+  const date = leg === "mon" ? monStr : addDays(monStr, 1);
+  const apt = opt.airport || "SDU";
+  const orig = leg === "mon" ? "CNF" : apt;
+  const dest = leg === "mon" ? apt   : "CNF";
+  const link = gLink(orig, dest, date);
+  state.approved[monStr+"-"+leg] = Object.assign({}, opt, { link, leg, week: monStr, route: orig+"→"+dest });
   saveState();
-  addNotif("Voo "+opt.airline+" "+opt.departure+" aprovado!", "success");
+  addNotif("Voo " + opt.airline + " " + opt.departure + " aprovado!", "success");
   render();
 }
 
 function confirmFlight(key) {
   const code = prompt("Codigo de reserva (opcional):");
   const flight = state.approved[key];
-  state.confirmed[key] = Object.assign({}, flight, { code:code||"", status:"confirmed" });
+  state.confirmed[key] = Object.assign({}, flight, { code: code||"", status:"confirmed" });
   delete state.approved[key];
   saveState();
   addNotif("Compra confirmada!", "success");
@@ -839,7 +798,7 @@ function confirmFlight(key) {
 }
 
 function removeFlight(key, mode) {
-  if (mode==="approved") delete state.approved[key];
+  if (mode === "approved") delete state.approved[key];
   else delete state.confirmed[key];
   saveState();
   render();
@@ -857,8 +816,14 @@ function updateManual(field, value) {
 function submitManual() {
   const f = state.manualForm;
   if (!f.week || !f.departure) { addNotif("Preencha semana e horario", "error"); return; }
-  const key = f.week+"-"+f.leg;
-  state.confirmed[key] = { airline:f.airline, route:f.route, departure:f.departure, code:f.code, payment_type:f.paymentType, price:f.paymentType==="cash"?Number(f.price):null, points:f.paymentType==="points"?Number(f.points):null, leg:f.leg, week:f.week, status:"confirmed_manual" };
+  const key = f.week + "-" + f.leg;
+  state.confirmed[key] = {
+    airline: f.airline, route: f.route, departure: f.departure, code: f.code,
+    payment_type: f.paymentType,
+    price:  f.paymentType === "cash"   ? Number(f.price)  : null,
+    points: f.paymentType === "points" ? Number(f.points) : null,
+    leg: f.leg, week: f.week, status: "confirmed_manual",
+  };
   saveState();
   addNotif("Compra registrada!", "success");
   state.showManual = false;

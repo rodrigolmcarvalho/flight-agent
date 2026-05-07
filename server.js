@@ -17,7 +17,7 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", key: APIDEVOOS_KEY ? "set" : "missing", version: "4" });
+  res.json({ status: "ok", key: APIDEVOOS_KEY ? "set" : "missing", version: "5" });
 });
 
 app.post("/api/search", async (req, res) => {
@@ -43,7 +43,6 @@ app.post("/api/search", async (req, res) => {
     let buffer = "";
     let flightGroups = [];
     let tokens = {};
-    let summary = {};
     let requestId = "";
     let currentEvent = "";
     let done = false;
@@ -78,25 +77,10 @@ app.post("/api/search", async (req, res) => {
             } else if (currentEvent === "flight-update") {
               const groups = data.newGroups || data.flightGroups || [];
               flightGroups = flightGroups.concat(groups);
-              if (flightGroups.length === groups.length && groups.length > 0) {
-                console.log("==> First flight-update keys:", Object.keys(data));
-                console.log("==> First group keys:", Object.keys(groups[0]));
-                console.log("==> First pricingOptions raw:", JSON.stringify(groups[0].pricingOptions || []));
-              console.log("==> First offers raw:", JSON.stringify(groups[0].offers || []));
-              }
-              console.log("==> Flight update, total:", flightGroups.length);
             } else if (currentEvent === "search-complete") {
-              summary = data.summary || {};
-              console.log("==> search-complete keys:", Object.keys(data));
-              const scStr = JSON.stringify(data);
-              if (/mile|point|reward|smiles|azul/i.test(scStr)) {
-                console.log("==> search-complete miles/points data:", scStr.slice(0, 800));
-              }
               clearTimeout(timeout);
               done = true;
               break;
-            } else if (currentEvent) {
-              console.log("==> Unknown SSE event:", currentEvent, JSON.stringify(data).slice(0, 300));
             }
           } catch(e) {}
         }
@@ -104,7 +88,6 @@ app.post("/api/search", async (req, res) => {
     }
 
     clearTimeout(timeout);
-    console.log("==> Final count:", flightGroups.length);
 
     // Deduplicate
     const seen = new Set();
@@ -113,50 +96,34 @@ app.post("/api/search", async (req, res) => {
       const sig = f.signature || f.humanSignature || f.flightSignature || JSON.stringify(f).slice(0, 80);
       if (!seen.has(sig)) { seen.add(sig); unique.push(f); }
     }
+    console.log("==> Collected:", flightGroups.length, "Unique:", unique.length);
 
-    // Airline breakdown: total vs direct
-    const totalByAirline = {}, directByAirline = {};
+    // Log first flight's raw pricingOptions for price debugging
+    if (unique.length > 0) {
+      const f0 = unique[0];
+      console.log("==> flightInfo type:", Array.isArray(f0.flightInfo) ? "array[" + f0.flightInfo.length + "]" : typeof f0.flightInfo);
+      console.log("==> First flight pricingOptions RAW:", JSON.stringify(getPricing(f0)).slice(0, 600));
+    }
+
+    // Airline breakdown
+    const byAirline = {}, byAirlineDirect = {};
     for (const f of unique) {
       const a = getAirline(f) || "?";
-      totalByAirline[a] = (totalByAirline[a]||0) + 1;
-      if (getSegments(f).length === 1) directByAirline[a] = (directByAirline[a]||0) + 1;
+      byAirline[a] = (byAirline[a] || 0) + 1;
+      if (getSegments(f).length === 1) byAirlineDirect[a] = (byAirlineDirect[a] || 0) + 1;
     }
-    console.log("==> By airline total:", JSON.stringify(totalByAirline));
-    console.log("==> By airline direct:", JSON.stringify(directByAirline));
+    console.log("==> By airline (all):", JSON.stringify(byAirline));
+    console.log("==> By airline (direct):", JSON.stringify(byAirlineDirect));
 
-    // Full raw pricingOptions dump for first Gol and Azul flight
-    const golFlight  = unique.find(f => getAirline(f) === "Gol");
-    const azulFlight = unique.find(f => getAirline(f) === "Azul");
-    for (const [name, fl] of [["Gol", golFlight], ["Azul", azulFlight]]) {
-      if (!fl) { console.log(`==> ${name}: not found in results`); continue; }
-      const pricing = getPricing(fl);
-      console.log(`==> ${name}: segs=${getSegments(fl).length} pricingOpts=${pricing.length} computedPrice=${getPrice(fl)}`);
-      // Log complete raw pricingOptions so cabin class / fare type fields are visible
-      console.log(`==> ${name} pricingOptions RAW:`, JSON.stringify(fl.pricingOptions || []));
-      console.log(`==> ${name} offers RAW:`, JSON.stringify(fl.offers || []));
-      const mileKeys = Object.keys(fl).filter(k => /mile|point|reward|smiles|azul|loyalty/i.test(k));
-      console.log(`    miles-related keys: ${mileKeys.length ? mileKeys.join(",") : "(none)"}`);
-    }
-
-    // Azul departure times — check if early morning flights are in API response
-    const azulDeps = unique
-      .filter(f => getAirline(f) === "Azul" && getSegments(f).length === 1)
-      .map(f => getDepTime(f))
-      .sort();
-    console.log("==> Azul direct departure times:", azulDeps.length ? azulDeps : "(none)");
-
-    // Sort by price
-    unique.sort((a, b) => getPrice(a) - getPrice(b));
-
-    // Direct flights (1 segment)
+    // Direct flights only (1 segment), sorted by price
     const direct = unique.filter(f => getSegments(f).length === 1);
+    direct.sort((a, b) => getPrice(a) - getPrice(b));
+    console.log("==> Direct:", direct.length);
 
-    // Extract miles
+    // Miles from all flights
     const miles = [];
     for (const f of unique) {
-      const pricing = getPricing(f);
-      for (const p of pricing) {
-        // Real API: pointsInfo lives inside offer.price, not directly on the offer
+      for (const p of getPricing(f)) {
         const priceObj = p.price && typeof p.price === "object" ? p.price : {};
         const info = priceObj.pointsInfo || p.pointsInfo || p.milesInfo || {};
         const pts = info.totalPoints || info.points || info.miles ||
@@ -164,48 +131,31 @@ app.post("/api/search", async (req, res) => {
         if (!pts) continue;
         const prog = (info.pointsType || info.program ||
           p.providerId || p.program || p.pointsType || "").toLowerCase();
-        // Taxes come as an array [{code, amount}] inside offer.price.taxes
         const taxAmt = Array.isArray(priceObj.taxes)
           ? priceObj.taxes.reduce((s, t) => s + (t.amount || 0), 0)
           : (typeof p.taxes === "object" && p.taxes ? (p.taxes.amount || 0) : (p.taxes || p.taxAmount || 0));
+        const segs = getSegments(f);
+        const dep = segs.length > 0 && segs[0].departure ? (segs[0].departure.time || "") : "";
+        const lastSeg = segs[segs.length - 1];
+        const arr = lastSeg && lastSeg.arrival ? (lastSeg.arrival.time || "") : "";
         miles.push({
           airline: getAirline(f),
-          departureDateTime: getDepDateTime(f),
-          arrivalDateTime: getArrDateTime(f),
+          departure: dep,
+          arrival: arr,
           pointsRequired: pts,
           pointsType: prog,
           taxAmount: taxAmt,
-          totalCashEquivalent: (pts * 0.014) + taxAmt,
+          cashEquivalent: Math.round(pts * 0.014 + taxAmt),
           providerId: p.providerId || priceObj.source || prog,
-          flightSignature: f.signature || "",
         });
       }
     }
-    miles.sort((a, b) => a.totalCashEquivalent - b.totalCashEquivalent);
-    console.log("==> Direct:", direct.length, "Miles found:", miles.length);
-    if (miles.length === 0 && unique.length > 0) {
-      console.log("==> No miles found. Checking first 2 pricing options for any points-like keys:");
-      for (const f of unique.slice(0, 2)) {
-        for (const p of getPricing(f).slice(0, 2)) {
-          const keys = Object.keys(p).join(",");
-          const prKeys = p.price && typeof p.price === "object" ? Object.keys(p.price).join(",") : "n/a";
-          console.log(`  pricing keys: [${keys}] price keys: [${prKeys}]`);
-          console.log(`  full opt:`, JSON.stringify(p));
-        }
-      }
-    }
-    if (direct.length > 0) {
-      console.log("==> First direct dep:", getDepTime(direct[0]), "airline:", getAirline(direct[0]));
-    }
+    miles.sort((a, b) => a.cashEquivalent - b.cashEquivalent);
+    console.log("==> Miles:", miles.length);
 
     return res.json({
       requestId, tokens,
-      summary: {
-        totalFlights: unique.length,
-        totalDirectFlights: direct.length,
-        totalMilesOffers: miles.length,
-      },
-      flightGroups: unique,
+      summary: { totalFlights: unique.length, totalDirectFlights: direct.length, totalMilesOffers: miles.length },
       directFlights: direct,
       milesGroups: miles,
     });
@@ -223,7 +173,7 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => console.log("Server running on port " + PORT));
 
-// ─── HELPERS com estrutura real da API ───────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function getSegments(f) {
   if (Array.isArray(f.flightInfo) && f.flightInfo[0])
     return f.flightInfo[0].segments || [];
@@ -233,48 +183,11 @@ function getSegments(f) {
   return [];
 }
 
-function getDepTime(f) {
-  const segs = getSegments(f);
-  if (segs.length > 0 && segs[0].departure) {
-    return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11, 16) || "";
-  }
-  return "";
-}
-
-function getDepDateTime(f) {
-  const segs = getSegments(f);
-  if (segs.length > 0 && segs[0].departure) {
-    return segs[0].departure.dateTime || "";
-  }
-  return "";
-}
-
-function getArrDateTime(f) {
-  const segs = getSegments(f);
-  if (segs.length > 0) {
-    const last = segs[segs.length - 1];
-    return (last.arrival && last.arrival.dateTime) ? last.arrival.dateTime : "";
-  }
-  return "";
-}
-
-function getArrTime(f) {
-  const segs = getSegments(f);
-  if (segs.length > 0) {
-    const last = segs[segs.length - 1];
-    if (last.arrival) {
-      return last.arrival.time || (last.arrival.dateTime || "").slice(11, 16) || "";
-    }
-  }
-  return "";
-}
-
 function getAirline(f) {
   const segs = getSegments(f);
   if (segs.length > 0 && segs[0].marketingCarrier) {
     const code = segs[0].marketingCarrier.code || "";
-    const map = { "AD": "Azul", "G3": "Gol", "LA": "LATAM", "JJ": "LATAM" };
-    return map[code] || code;
+    return { "AD":"Azul", "G3":"Gol", "LA":"LATAM", "JJ":"LATAM" }[code] || code;
   }
   return f.airline || "";
 }
@@ -286,24 +199,11 @@ function getPricing(f) {
   return opts;
 }
 
-// Returns false only if the option is explicitly non-economy (business/first/premium).
-// Unknown cabin class → included (conservative — don't over-filter).
-function isEconomyOpt(opt) {
-  const NON_ECO = /business|executiv|first|premium|suite/i;
-  for (const key of ["cabinClass","cabin","fareClass","class","fareType","service","cabinType","productClass","fareFamily"]) {
-    const v = opt[key];
-    if (v && NON_ECO.test(String(v))) return false;
-  }
-  return true;
-}
-
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
-    // Livelo's price.total = baseFare + R$3100 platform fee — use baseFare (actual ticket cost)
-    if (offer.providerId === "livelo") {
+    if (offer.providerId === "livelo")
       return pr.baseFare || pr.adultPrice || pr.companyPrice || pr.total || 0;
-    }
     return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
            pr.totalAmount || pr.fare || pr.totalFare || 0;
   }
@@ -312,24 +212,16 @@ function extractPrice(offer) {
          offer.amount || offer.grandTotal || offer.fare || 0;
 }
 
-function getBookingUrl(f) {
-  const all = getPricing(f);
-  const eco = all.filter(isEconomyOpt);
-  const pool = eco.length > 0 ? eco : all;
-  pool.sort((a, b) => extractPrice(a) - extractPrice(b));
-  for (const o of pool) {
-    if (o.booking && o.booking.bookingUrl) return o.booking.bookingUrl;
-  }
-  return null;
-}
-
 function getPrice(f) {
   const all = getPricing(f);
-  if (all.length > 0) {
-    const eco = all.filter(isEconomyOpt);
-    const pool = eco.length > 0 ? eco : all; // fallback: use all if nothing passes economy filter
-    const prices = pool.map(extractPrice).filter(x => x > 0);
-    return prices.length > 0 ? Math.min(...prices) : 0;
-  }
-  return f.price || f.total || f.totalPrice || f.amount || 0;
+  if (all.length === 0) return f.price || f.total || f.totalPrice || f.amount || 0;
+  const prices = all.map(extractPrice).filter(x => x > 0);
+  return prices.length > 0 ? Math.min(...prices) : 0;
+}
+
+function getDepTime(f) {
+  const segs = getSegments(f);
+  if (segs.length > 0 && segs[0].departure)
+    return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11, 16) || "";
+  return "";
 }
