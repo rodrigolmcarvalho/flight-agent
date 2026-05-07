@@ -295,6 +295,9 @@ function isEconomyOpt(opt) {
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
+    if (offer.providerId === "livelo") {
+      return pr.baseFare || pr.adultPrice || pr.companyPrice || pr.total || 0;
+    }
     return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
            pr.totalAmount || pr.fare || pr.totalFare || 0;
   }

@@ -300,12 +300,27 @@ function isEconomyOpt(opt) {
 function extractPrice(offer) {
   const pr = offer.price;
   if (pr && typeof pr === "object") {
+    // Livelo's price.total = baseFare + R$3100 platform fee — use baseFare (actual ticket cost)
+    if (offer.providerId === "livelo") {
+      return pr.baseFare || pr.adultPrice || pr.companyPrice || pr.total || 0;
+    }
     return pr.total || pr.baseFare || pr.grandTotal || pr.amount ||
            pr.totalAmount || pr.fare || pr.totalFare || 0;
   }
   if (typeof pr === "number" && pr > 0) return pr;
   return offer.totalPrice || offer.total || offer.totalAmount ||
          offer.amount || offer.grandTotal || offer.fare || 0;
+}
+
+function getBookingUrl(f) {
+  const all = getPricing(f);
+  const eco = all.filter(isEconomyOpt);
+  const pool = eco.length > 0 ? eco : all;
+  pool.sort((a, b) => extractPrice(a) - extractPrice(b));
+  for (const o of pool) {
+    if (o.booking && o.booking.bookingUrl) return o.booking.bookingUrl;
+  }
+  return null;
 }
 
 function getPrice(f) {
