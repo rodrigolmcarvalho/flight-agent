@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", version: "8" });
+  res.json({ status: "ok", version: "9" });
 });
 
 app.get("/api/test-python", async (req, res) => {
@@ -100,6 +100,24 @@ app.post("/api/search", async (req, res) => {
     console.log("==> Error:", err.message);
     return res.status(500).json({ error: err.message });
   }
+});
+
+// Debug: run search.py and return raw stdout+stderr
+app.get("/api/test-search", async (req, res) => {
+  const { exec } = require("child_process");
+  const origin = req.query.from || "CNF";
+  const dest   = req.query.to   || "SDU";
+  const date   = req.query.date || "2026-05-18";
+  const cmd = `${PYTHON} ${SEARCH_SCRIPT} ${origin} ${dest} ${date}`;
+  console.log("==> test-search:", cmd);
+  exec(cmd, { timeout: 60000, maxBuffer: 1024*1024 }, (err, stdout, stderr) => {
+    res.json({
+      cmd,
+      stdout: stdout.slice(0, 2000),
+      stderr: stderr.slice(0, 2000),
+      exitErr: err ? err.message : null,
+    });
+  });
 });
 
 app.use(express.static(path.join(__dirname, "public")));
