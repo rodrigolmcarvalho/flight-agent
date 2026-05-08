@@ -9,6 +9,10 @@ import sys
 import json
 
 
+# Approximate BRL/USD exchange rate — update if significantly off.
+# fli always returns USD from US IPs (Currency enum only has USD).
+USD_TO_BRL = 5.8
+
 AIRLINE_NORMALIZE = {
     "azul":  "Azul",
     "gol":   "Gol",
@@ -122,15 +126,20 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
         if not legs:
             continue
 
-        # USD price from standard price block (works on US IPs / Render).
-        usd_price = float(result.price) if result.price and result.price > 0 else 0.0
+        # Raw price and currency from fli (USD when on US IPs, 0/None on Brazilian IPs).
+        raw_price = float(result.price) if result.price else 0.0
+        currency  = result.currency  # "USD", "BRL", or None
 
-        # Internal tier value — use to distinguish price tiers when USD price is absent.
+        # Internal tier value — use to distinguish price tiers when price is absent.
         tier = _get_price_tier(row)
 
         leg = legs[0]
         airline_name = normalize_airline(
             leg.airline.value if hasattr(leg.airline, "value") else str(leg.airline)
+        )
+        sys.stderr.write(
+            f"[search]   {airline_name} {leg.flight_number}: "
+            f"raw_price={raw_price} currency={currency} tier={tier}\n"
         )
         raw_flights.append({
             "airline":        airline_name,
@@ -138,20 +147,35 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
             "departure_time": fmt_time(leg.departure_datetime),
             "arrival_time":   fmt_time(leg.arrival_datetime),
             "airport":        destination,
-            "_usd_price":     usd_price,
+            "_raw_price":     raw_price,
+            "_currency":      currency,
             "_tier":          tier,
         })
 
     if not raw_flights:
         return []
 
-    # If we have real USD prices, use them directly.
-    if all(f["_usd_price"] > 0 for f in raw_flights):
-        sys.stderr.write("[search] using USD prices from price block\n")
-        flights = [
-            {k: v for k, v in f.items() if not k.startswith("_")} | {"price": round(f["_usd_price"], 2)}
-            for f in raw_flights
-        ]
+    # If fli returned real prices (US IP / Render), convert currency to BRL.
+    if all(f["_raw_price"] > 0 for f in raw_flights):
+        currency = raw_flights[0]["_currency"]
+        if currency == "BRL":
+            rate = 1.0
+            sys.stderr.write("[search] fli returned BRL prices directly\n")
+        else:
+            # fli only supports USD (Currency enum has no BRL option).
+            # Multiply by exchange rate to display in BRL.
+            rate = USD_TO_BRL
+            sys.stderr.write(
+                f"[search] fli returned {currency or 'USD'} prices "
+                f"— converting to BRL at rate {rate}\n"
+            )
+        flights = []
+        for f in raw_flights:
+            brl = round(f["_raw_price"] * rate, 2)
+            sys.stderr.write(f"[search]   {f['airline']} {f['flight_number']}: {f['_raw_price']} {currency or 'USD'} -> R${brl}\n")
+            row = {k: v for k, v in f.items() if not k.startswith("_")}
+            row["price"] = brl
+            flights.append(row)
     elif price_min is not None:
         # BRL IP: map tier values linearly onto the price range.
         tiers = sorted(set(f["_tier"] for f in raw_flights if f["_tier"] > 0))
