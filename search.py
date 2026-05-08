@@ -92,8 +92,8 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
         passenger_info=PassengerInfo(adults=1),
         flight_segments=[
             FlightSegment(
-                departure_airport=[dep_airport],
-                arrival_airport=[arr_airport],
+                departure_airport=[[dep_airport]],
+                arrival_airport=[[arr_airport]],
                 travel_date=date_str,
             )
         ],
