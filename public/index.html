@@ -236,60 +236,12 @@ function gLink(origin, dest, date) {
 }
 
 // ─── FLIGHT HELPERS ───────────────────────────────────────────────────────────
-function getSegs(f) {
-  if (Array.isArray(f.flightInfo) && f.flightInfo[0])
-    return f.flightInfo[0].segments || [];
-  if (f.flightInfo && f.flightInfo.itineraries && f.flightInfo.itineraries[0])
-    return f.flightInfo.itineraries[0].segments || [];
-  if (f.slices && f.slices[0]) return f.slices[0].segments || [];
-  return [];
-}
-function getDepTime(f) {
-  const segs = getSegs(f);
-  if (segs.length > 0 && segs[0].departure)
-    return segs[0].departure.time || (segs[0].departure.dateTime || "").slice(11,16) || "";
-  return "";
-}
-function getArrTime(f) {
-  const segs = getSegs(f);
-  if (segs.length === 0) return "";
-  const last = segs[segs.length - 1];
-  if (last.arrival) return last.arrival.time || (last.arrival.dateTime || "").slice(11,16) || "";
-  return "";
-}
-function getAirlineName(f) {
-  const segs = getSegs(f);
-  if (segs.length > 0 && segs[0].marketingCarrier) {
-    const code = segs[0].marketingCarrier.code || "";
-    return AIRLINE_MAP[code] || code;
-  }
-  return f.airline || "";
-}
-function getPricing(f) {
-  const opts = [];
-  if (f.pricingOptions && f.pricingOptions.length) opts.push(...f.pricingOptions);
-  if (f.offers && f.offers.length) opts.push(...f.offers);
-  return opts;
-}
-function extractPrice(offer) {
-  const PRICE_KEYS = ["baseFare","adultPrice","companyPrice","fare","amount","totalFare","total","grandTotal","totalAmount"];
-  const pr = offer.price;
-  const candidates = [];
-  if (pr && typeof pr === "object") {
-    for (const k of PRICE_KEYS) { const v = Number(pr[k]); if (v > 50) candidates.push(v); }
-  } else if (typeof pr === "number" && pr > 50) {
-    candidates.push(pr);
-  }
-  // Always also check top-level offer.* fields (baseFare may live here for round-trip)
-  for (const k of PRICE_KEYS) { const v = Number(offer[k]); if (v > 50) candidates.push(v); }
-  return candidates.length ? Math.min(...candidates) : 0;
-}
-function getPrice(f) {
-  const all = getPricing(f);
-  if (all.length === 0) return f.price || f.total || f.totalPrice || f.amount || 0;
-  const prices = all.map(extractPrice).filter(x => x > 0);
-  return prices.length > 0 ? Math.min(...prices) : 0;
-}
+// Flights from Google Flights (fli) are flat objects:
+// { airline, flight_number, departure_time, arrival_time, price, airport }
+function getAirlineName(f) { return f.airline || ""; }
+function getDepTime(f)     { return f.departure_time || ""; }
+function getArrTime(f)     { return f.arrival_time || ""; }
+function getPrice(f)       { return typeof f.price === "number" ? f.price : 0; }
 function progLabel(prog) {
   if (/gol|smiles/.test(prog))  return "Smiles";
   if (/azul|tudo/.test(prog))   return "TudoAzul";
@@ -299,10 +251,6 @@ function progLabel(prog) {
 }
 
 
-function segTime(seg, field) {
-  if (!seg || !seg[field]) return "";
-  return seg[field].time || (seg[field].dateTime || "").slice(11,16) || "";
-}
 
 function buildPtsOpts(allMiles) {
   const opts = allMiles.map(m => ({
