@@ -8,7 +8,6 @@ Prints a JSON array of flights sorted by price ascending.
 import sys
 import json
 import re
-from datetime import datetime
 
 
 AIRLINE_NORMALIZE = {
@@ -84,19 +83,18 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
     )
     from fli.search import SearchFlights
 
-    travel_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
     dep_airport = get_airport(Airport, origin)
     arr_airport = get_airport(Airport, destination)
 
+    # FlightSegment expects lists for airports and a date string (not datetime.date)
     filters = FlightSearchFilters(
         trip_type=TripType.ONE_WAY,
         passenger_info=PassengerInfo(adults=1),
         flight_segments=[
             FlightSegment(
-                departure_airport=dep_airport,
-                arrival_airport=arr_airport,
-                travel_date=travel_date,
+                departure_airport=[dep_airport],
+                arrival_airport=[arr_airport],
+                travel_date=date_str,
             )
         ],
         seat_type=SeatType.ECONOMY,
