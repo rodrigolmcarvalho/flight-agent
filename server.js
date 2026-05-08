@@ -1,6 +1,6 @@
 const express = require("express");
 const path = require("path");
-const { execFile } = require("child_process");
+const { execFile, execSync } = require("child_process");
 const app = express();
 
 app.use(express.json());
@@ -8,6 +8,27 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const PYTHON = process.platform === "win32" ? "python" : "python3";
 const SEARCH_SCRIPT = path.join(__dirname, "search.py");
+
+// Install fli Python library at startup so it's available regardless of how
+// Render launches the process. Try both known pip package names.
+(function installPythonDeps() {
+  const flags = ["--user", "--break-system-packages", ""];
+  const pkgs  = ["fli", "flights"];
+  for (const pkg of pkgs) {
+    for (const flag of flags) {
+      try {
+        const cmd = `${PYTHON} -m pip install ${pkg} -q${flag ? " " + flag : ""}`;
+        console.log("==> pip:", cmd);
+        execSync(cmd, { stdio: "pipe", timeout: 60000 });
+        // Verify the import works
+        execSync(`${PYTHON} -c "import fli"`, { stdio: "pipe", timeout: 5000 });
+        console.log(`==> fli installed via '${pkg}' (${flag || "no flag"})`);
+        return;
+      } catch (_) {}
+    }
+  }
+  console.log("==> WARNING: could not install fli. Searches will return empty results.");
+})();
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -18,27 +39,33 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", version: "7" });
+  res.json({ status: "ok", version: "8" });
 });
 
 app.get("/api/test-python", async (req, res) => {
   const { exec } = require("child_process");
   const run = (label, cmd) => new Promise(resolve => {
-    exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
+    exec(cmd, { timeout: 20000 }, (err, stdout, stderr) => {
       resolve({ label, cmd, out: stdout.trim(), err: stderr.trim(), exitErr: err ? err.message : null });
     });
   });
 
+  // Sequential pip installs to avoid race conditions
+  const pipFli     = await run("pip install fli --user",     `${PYTHON} -m pip install fli --user -q 2>&1`);
+  const pipFlights = await run("pip install flights --user", `${PYTHON} -m pip install flights --user -q 2>&1`);
+  const pipFliBS   = await run("pip install fli --break-system-packages", `${PYTHON} -m pip install fli --break-system-packages -q 2>&1`);
+
   const checks = await Promise.all([
-    run("python version",    `${PYTHON} --version`),
-    run("fli import",        `${PYTHON} -c "import fli; print(getattr(fli, '__version__', 'no __version__'))"`),
-    run("Airport.CNF",       `${PYTHON} -c "from fli.models import Airport; print(Airport.CNF)"`),
-    run("Airport.SDU",       `${PYTHON} -c "from fli.models import Airport; print(Airport.SDU)"`),
-    run("Airport.GIG",       `${PYTHON} -c "from fli.models import Airport; print(Airport.GIG)"`),
-    run("Airport enum list", `${PYTHON} -c "from fli.models import Airport; names=[a.name for a in Airport]; br=[n for n in names if n in {'CNF','SDU','GIG','GRU','BSB','SSA','FOR','REC'}]; print('BR airports in enum:', br)"`),
+    run("python version",       `${PYTHON} --version`),
+    run("pip list (fli-related)", `${PYTHON} -m pip list 2>/dev/null | grep -i -E 'fli|flight'`),
+    run("import fli",           `${PYTHON} -c "import fli; print(fli.__version__ if hasattr(fli,'__version__') else 'imported ok')"`),
+    run("Airport.CNF",          `${PYTHON} -c "from fli.models import Airport; print(Airport['CNF'] if 'CNF' in Airport._member_names_ else 'CNF NOT in enum')"`),
+    run("Airport.SDU",          `${PYTHON} -c "from fli.models import Airport; print(Airport['SDU'] if 'SDU' in Airport._member_names_ else 'SDU NOT in enum')"`),
+    run("Airport.GIG",          `${PYTHON} -c "from fli.models import Airport; print(Airport['GIG'] if 'GIG' in Airport._member_names_ else 'GIG NOT in enum')"`),
+    run("BR airports in enum",  `${PYTHON} -c "from fli.models import Airport; br=[n for n in Airport._member_names_ if n in {'CNF','SDU','GIG','GRU','BSB','SSA','FOR','REC'}]; print('found:', br)"`),
   ]);
 
-  res.json({ python: PYTHON, checks });
+  res.json({ python: PYTHON, pipInstalls: [pipFli, pipFlights, pipFliBS], checks });
 });
 
 app.post("/api/search", async (req, res) => {
