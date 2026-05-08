@@ -52,6 +52,25 @@ def fmt_time(dt) -> str:
     return m.group(1) if m else s[:5]
 
 
+def get_airport(Airport, code: str):
+    """Resolve an IATA code to an Airport enum member, with a clear error if missing."""
+    try:
+        return Airport[code]          # enum access: Airport["CNF"]
+    except KeyError:
+        pass
+    try:
+        return getattr(Airport, code) # attribute access: Airport.CNF
+    except AttributeError:
+        pass
+    # Some fli versions accept a string directly
+    try:
+        return Airport(code)
+    except Exception:
+        pass
+    raise ValueError(f"Airport '{code}' not found in fli Airport enum. "
+                     "Check /api/test-python for available Brazilian airports.")
+
+
 def search_route(origin: str, destination: str, date_str: str) -> list:
     from fli.models import (
         Airport,
@@ -67,13 +86,16 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
 
     travel_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
+    dep_airport = get_airport(Airport, origin)
+    arr_airport = get_airport(Airport, destination)
+
     filters = FlightSearchFilters(
         trip_type=TripType.ONE_WAY,
         passenger_info=PassengerInfo(adults=1),
         flight_segments=[
             FlightSegment(
-                departure_airport=Airport(code=origin),
-                arrival_airport=Airport(code=destination),
+                departure_airport=dep_airport,
+                arrival_airport=arr_airport,
                 travel_date=travel_date,
             )
         ],

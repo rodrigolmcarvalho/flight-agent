@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "python3 -m pip install flights -q && node server.js"
+    "start": "python3 -m pip install flights -q --break-system-packages 2>/dev/null || python3 -m pip install flights -q && node server.js"
   },
   "dependencies": {
     "express": "^4.18.2"

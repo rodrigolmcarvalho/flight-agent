@@ -18,7 +18,27 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", version: "6" });
+  res.json({ status: "ok", version: "7" });
+});
+
+app.get("/api/test-python", async (req, res) => {
+  const { exec } = require("child_process");
+  const run = (label, cmd) => new Promise(resolve => {
+    exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
+      resolve({ label, cmd, out: stdout.trim(), err: stderr.trim(), exitErr: err ? err.message : null });
+    });
+  });
+
+  const checks = await Promise.all([
+    run("python version",    `${PYTHON} --version`),
+    run("fli import",        `${PYTHON} -c "import fli; print(getattr(fli, '__version__', 'no __version__'))"`),
+    run("Airport.CNF",       `${PYTHON} -c "from fli.models import Airport; print(Airport.CNF)"`),
+    run("Airport.SDU",       `${PYTHON} -c "from fli.models import Airport; print(Airport.SDU)"`),
+    run("Airport.GIG",       `${PYTHON} -c "from fli.models import Airport; print(Airport.GIG)"`),
+    run("Airport enum list", `${PYTHON} -c "from fli.models import Airport; names=[a.name for a in Airport]; br=[n for n in names if n in {'CNF','SDU','GIG','GRU','BSB','SSA','FOR','REC'}]; print('BR airports in enum:', br)"`),
+  ]);
+
+  res.json({ python: PYTHON, checks });
 });
 
 app.post("/api/search", async (req, res) => {
