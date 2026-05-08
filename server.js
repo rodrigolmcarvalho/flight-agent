@@ -39,7 +39,19 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", version: "9" });
+  res.json({ status: "ok", version: "10" });
+});
+
+// Quick airport enum check
+app.get("/api/test", (req, res) => {
+  const { exec } = require("child_process");
+  const cmd = `${PYTHON} -c "from fli.models import Airport; print(hasattr(Airport, 'CNF')); print(list(Airport)[:5])"`;
+  console.log("==> /api/test cmd:", cmd);
+  exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
+    console.log("==> /api/test stdout:", stdout.trim());
+    console.log("==> /api/test stderr:", stderr.trim());
+    res.json({ cmd, stdout: stdout.trim(), stderr: stderr.trim(), exitErr: err ? err.message : null });
+  });
 });
 
 app.get("/api/test-python", async (req, res) => {
@@ -127,13 +139,16 @@ app.listen(PORT, () => console.log("Server running on port " + PORT));
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function runPython(origin, dest, date) {
+  const args = [SEARCH_SCRIPT, origin, dest, date];
+  console.log("==> runPython cmd:", PYTHON, args.join(" "));
   return new Promise((resolve) => {
     execFile(
       PYTHON,
-      [SEARCH_SCRIPT, origin, dest, date],
+      args,
       { timeout: 45000, maxBuffer: 2 * 1024 * 1024 },
       (err, stdout, stderr) => {
-        if (stderr && stderr.trim()) console.log("==> Python:", stderr.trim().slice(0, 400));
+        console.log("==> Python stdout:", stdout.trim().slice(0, 500) || "(empty)");
+        console.log("==> Python stderr:", stderr.trim().slice(0, 800) || "(empty)");
         if (err) {
           console.log("==> Python exit error:", err.message);
           resolve([]);
@@ -141,9 +156,10 @@ function runPython(origin, dest, date) {
         }
         try {
           const parsed = JSON.parse(stdout.trim());
+          console.log("==> Parsed flights:", Array.isArray(parsed) ? parsed.length : "not array");
           resolve(Array.isArray(parsed) ? parsed : []);
         } catch (e) {
-          console.log("==> JSON parse error:", e.message, "| stdout:", stdout.slice(0, 200));
+          console.log("==> JSON parse error:", e.message, "| raw stdout:", stdout.slice(0, 300));
           resolve([]);
         }
       }
