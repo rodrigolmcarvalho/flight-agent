@@ -134,38 +134,7 @@ const POINTS_RATE = 0.014;
 const AIRLINE_MAP = { "AD":"Azul", "G3":"Gol", "LA":"LATAM", "JJ":"LATAM" };
 
 // ─── DADOS ───────────────────────────────────────────────────────────────────
-const EXISTING_FLIGHTS = {
-  "2026-05-04": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"AW86GN" }, tue: null },
-  "2026-05-11": { mon: { airline:"Azul", route:"CNF→SDU", time:"06:10", code:"AP2WWK" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:30", code:"AP2WWK" } },
-  "2026-05-18": { mon: { airline:"Azul", route:"CNF→SDU", time:"06:10", code:"QNBW3Q" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:30", code:"QNBW3Q" } },
-  "2026-05-25": { mon: { airline:"Azul", route:"CNF→SDU", time:"06:10", code:"YH5DWY" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:30", code:"YH5DWY" } },
-  "2026-06-01": { mon: null, tue: null },
-  "2026-06-08": { mon: null, tue: { airline:"Azul", route:"GIG→CNF", time:"20:50", code:"BLYLGW" } },
-  "2026-06-15": { mon: { airline:"Gol", route:"CNF→GIG", time:"06:20", code:"FGMCAQ" }, tue: { airline:"Gol", route:"GIG→CNF", time:"19:00", code:"FGMCAQ" } },
-  "2026-06-22": { mon: null, tue: null }, "2026-06-29": { mon: null, tue: null },
-  "2026-07-06": { mon: null, tue: null }, "2026-07-13": { mon: null, tue: null },
-  "2026-07-20": { mon: null, tue: null }, "2026-07-27": { mon: null, tue: null },
-  "2026-08-03": { mon: null, tue: null },
-  "2026-08-10": { mon: null, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"JLTIPW" } },
-  "2026-08-17": { mon: null, tue: null }, "2026-08-24": { mon: null, tue: null },
-  "2026-08-31": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"CLRWJG" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"CLRWJG" } },
-  "2026-09-07": { mon: null, tue: null },
-  "2026-09-14": { mon: { airline:"Azul", route:"CNF→SDU", time:"11:55", code:"LNGVTD" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"LNGVTD" } },
-  "2026-09-21": { mon: null, tue: null },
-  "2026-09-28": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"KNLJVD" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"KNLJVD" } },
-  "2026-10-05": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"UWGYHQ" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"UWGYHQ" } },
-  "2026-10-12": { mon: null, tue: null },
-  "2026-10-19": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"GJI8WP" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"GJI8WP" } },
-  "2026-10-26": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"VEIGXE" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"VEIGXE" } },
-  "2026-11-02": { mon: null, tue: null },
-  "2026-11-09": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"BSM3XB" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"BSM3XB" } },
-  "2026-11-16": { mon: null, tue: null },
-  "2026-11-23": { mon: null, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"USLL9R" } },
-  "2026-11-30": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"AIJMXC" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"AIJMXC" } },
-  "2026-12-07": { mon: null, tue: null },
-  "2026-12-14": { mon: { airline:"Azul", route:"CNF→SDU", time:"08:15", code:"GHR12C" }, tue: { airline:"Azul", route:"SDU→CNF", time:"19:20", code:"GHR12C" } },
-  "2026-12-21": { mon: null, tue: null }, "2026-12-28": { mon: null, tue: null },
-};
+const EXISTING_FLIGHTS = {};
 
 const VACATION_PERIODS = [
   { start:"2026-07-16", end:"2026-07-29", label:"Ferias 16/07-29/07" },
