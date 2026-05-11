@@ -196,34 +196,34 @@ let state = {
   manualForm: { week:"", leg:"mon", airline:"Azul", route:"CNF→SDU", departure:"", code:"", paymentType:"cash", price:"", points:"" },
 };
 
-async function loadState() {
-  const { data: { session } } = await _supabase.auth.getSession();
-  if (session) {
-    const { data } = await _supabase
-      .from('user_flights')
-      .select('state_json')
-      .eq('user_id', session.user.id)
-      .single();
-    if (data?.state_json) {
-      Object.assign(state, data.state_json);
-      render();
-      return;
-    }
-  }
-  // fallback localStorage
+function loadState() {
   const saved = localStorage.getItem('flightAgentState');
   if (saved) Object.assign(state, JSON.parse(saved));
+  _supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) return;
+    _supabase.from('user_flights')
+      .select('state_json')
+      .eq('user_id', session.user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.state_json) {
+          Object.assign(state, data.state_json);
+          render();
+        }
+      });
+  });
 }
 
-async function saveState() {
+function saveState() {
   localStorage.setItem('flightAgentState', JSON.stringify(state));
-  const { data: { session } } = await _supabase.auth.getSession();
-  if (!session) return;
-  await _supabase.from('user_flights').upsert({
-    user_id: session.user.id,
-    state_json: state,
-    updated_at: new Date().toISOString()
-  }, { onConflict: 'user_id' });
+  _supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) return;
+    _supabase.from('user_flights').upsert({
+      user_id: session.user.id,
+      state_json: state,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+  });
 }
 
 // ─── DATE HELPERS ─────────────────────────────────────────────────────────────
@@ -843,7 +843,7 @@ async function signOut() {
   document.querySelector('.content').style.display = 'none';
 }
 
-async function showApp(user) {
+function showApp(user) {
   loginScreen.style.display = 'none';
   userInfo.style.display = 'flex';
   document.querySelector('.tabs').style.display = 'flex';
@@ -858,8 +858,8 @@ async function showApp(user) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 _supabase.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
-    await showApp(session.user);
-    await loadState();
+    showApp(session.user);
+    loadState();
     render();
   } else {
     loginScreen.style.display = 'flex';
