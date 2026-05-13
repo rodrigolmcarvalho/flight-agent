@@ -14,10 +14,21 @@ import json
 # fli always returns USD from US IPs (Currency enum only has USD).
 USD_TO_BRL = 5.8
 
-# When fli doesn't tag the currency (price range path), assume this. Render is
-# a US IP so the API returns USD; override with FLIGHT_PRICE_CURRENCY=BRL on
-# Brazilian dev machines where the same API returns BRL.
-ASSUMED_SOURCE_CURRENCY = os.environ.get("FLIGHT_PRICE_CURRENCY", "USD").upper()
+# When fli doesn't tag currency (the ef[7][0] tier-mapping path), assume what
+# Google would have returned based on the caller's geo:
+#   1. FLIGHT_PRICE_CURRENCY env var — explicit override, wins over everything.
+#   2. RENDER env var (set automatically on Render.com, where the egress IP is
+#      in the US) → assume USD.
+#   3. Default → assume BRL (dev machines in Brazil).
+def _detect_source_currency() -> str:
+    override = os.environ.get("FLIGHT_PRICE_CURRENCY")
+    if override:
+        return override.upper()
+    if os.environ.get("RENDER"):
+        return "USD"
+    return "BRL"
+
+ASSUMED_SOURCE_CURRENCY = _detect_source_currency()
 
 AIRLINE_NORMALIZE = {
     "azul":  "Azul",
