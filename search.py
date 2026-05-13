@@ -5,6 +5,7 @@ Usage: python search.py <ORIGIN> <DESTINATION> <YYYY-MM-DD>
 Prints a JSON array of flights sorted by price ascending.
 """
 
+import os
 import sys
 import json
 
@@ -12,6 +13,11 @@ import json
 # Approximate BRL/USD exchange rate — update if significantly off.
 # fli always returns USD from US IPs (Currency enum only has USD).
 USD_TO_BRL = 5.8
+
+# When fli doesn't tag the currency (price range path), assume this. Render is
+# a US IP so the API returns USD; override with FLIGHT_PRICE_CURRENCY=BRL on
+# Brazilian dev machines where the same API returns BRL.
+ASSUMED_SOURCE_CURRENCY = os.environ.get("FLIGHT_PRICE_CURRENCY", "USD").upper()
 
 AIRLINE_NORMALIZE = {
     "azul":  "Azul",
@@ -102,15 +108,19 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
     sys.stderr.write(f"[search] raw rows: {len(raw_rows)}\n")
 
     # Price range from ef[7][0]: [[None, min_price], [None, max_price]]
-    # These are accurate BRL values for Brazilian IPs (or USD for US IPs).
+    # On a Brazilian IP these are BRL; on a US IP (Render) they are USD.
     price_min = price_max = None
     try:
         pr = ef[7][0]
         price_min = pr[0][1]
         price_max = pr[1][1] if len(pr) > 1 else price_min
+        sys.stderr.write(f"[search] raw ef[7][0] = {pr}\n")
     except (IndexError, TypeError, KeyError):
         pass
-    sys.stderr.write(f"[search] price range from API: min={price_min} max={price_max}\n")
+    sys.stderr.write(
+        f"[search] price range from API: min={price_min} max={price_max} "
+        f"(assumed source currency={ASSUMED_SOURCE_CURRENCY})\n"
+    )
 
     # Collect tier values and parse flight details.
     sf = SearchFlights()
@@ -177,11 +187,21 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
             row["price"] = brl
             flights.append(row)
     elif price_min is not None:
-        # BRL IP: map tier values linearly onto the price range.
+        # fli didn't extract per-flight prices, so map tier values linearly onto
+        # the price range from ef[7][0]. That range is in the API's source
+        # currency (BRL on a BR IP, USD on a US IP like Render) and fli does
+        # not label it, so apply the same USD→BRL rule as the price path above.
+        detected = next((f["_currency"] for f in raw_flights if f["_currency"]), None)
+        source_currency = (detected or ASSUMED_SOURCE_CURRENCY).upper()
+        rate = 1.0 if source_currency == "BRL" else USD_TO_BRL
+
         tiers = sorted(set(f["_tier"] for f in raw_flights if f["_tier"] > 0))
         tier_min = tiers[0] if tiers else 1
         tier_max = tiers[-1] if tiers else 1
-        sys.stderr.write(f"[search] BRL price mapping: tiers={tiers} -> {price_min}..{price_max}\n")
+        sys.stderr.write(
+            f"[search] tier price mapping: tiers={tiers} -> "
+            f"{price_min}..{price_max} {source_currency} (rate {rate})\n"
+        )
 
         def map_price(tier_val: int) -> float:
             if tier_min == tier_max:
@@ -191,9 +211,14 @@ def search_route(origin: str, destination: str, date_str: str) -> list:
 
         flights = []
         for f in raw_flights:
-            price = map_price(f["_tier"]) if f["_tier"] > 0 else float(price_min)
+            src_price = map_price(f["_tier"]) if f["_tier"] > 0 else float(price_min)
+            brl = round(src_price * rate, 2)
+            sys.stderr.write(
+                f"[search]   {f['airline']} {f['flight_number']}: "
+                f"{src_price} {source_currency} -> R${brl}\n"
+            )
             row = {k: v for k, v in f.items() if not k.startswith("_")}
-            row["price"] = round(price, 2)
+            row["price"] = brl
             flights.append(row)
     else:
         sys.stderr.write("[search] no price data available, skipping all results\n")
